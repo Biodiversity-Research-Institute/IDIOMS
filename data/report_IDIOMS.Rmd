@@ -1,0 +1,430 @@
+---
+title: 'Summary of results from IDIOMS - A tool for Informing the Design and Implementation of Offshore Motus Systems'
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: pdf_document
+params:
+  IDIOMS_version: NA
+  project: NA
+  modeler: NA
+  run_start_time: NA
+  run_end_time: NA
+  input_pars: NA
+  study_boundary: NA
+  study_covg: NA
+  output_df: NA
+  option: NA
+  simulated_tracks: NA
+  seabird_sims: NA
+  shorebird_sims: NA
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage[normalem]{ulem}
+---
+<!-- header-includes required because won't re-run after first report download -->
+<!-- Fix: https://stackoverflow.com/questions/46080853/why-does-rendering-a-pdf-from-rmarkdown-require-closing-rstudio-between-renders/46083308#46083308 -->
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
+options(tinytex.verbose = TRUE)
+# load(file = "P:/NYSERDA Nanotag tools/IDIOMS_shiny/data/params.RData")
+```
+
+\begin{center}
+\includegraphics[width=1\textwidth]{IDIOMS_logo_final_2_large_print.png}
+\end{center}
+
+<br>
+<br>
+
+IDIOMS was developed by Biodiversity Research Institute and the U.S. Fish and Wildlife Service with funding from NYSERDA.
+
+<br>
+<br>
+
+\begin{center}
+\includegraphics[width=0.2\textwidth]{BRI_color_logo_no_words.png}
+\includegraphics[width=0.1\textwidth]{USFWS.png}
+\includegraphics[width=0.2\textwidth]{NYSERDA.png}
+\end{center}
+
+<br>
+<br>
+
+\newpage
+
+## IDIOM run details 
+
+<br>
+<br>
+
+```{r, echo=FALSE, warning=FALSE, message = FALSE}
+  
+option_names <- c("Manual selection", "Coverage optimized", "Avoidance optimized", "Track optimized")
+
+
+cat(paste0("IDIOMS - Informing the Design and Implementation of Offshore Motus Systems version ", params$IDIOMS_version,"\nwas run for ", params$option, "\n", 
+          "Project: ", params$project, "\n",
+          "Modeler: ", params$modeler, "\n",
+          "The model run was started at: ",  format(params$run_start_time, "%a %b %d %X %Y %Z"), "\n",
+          "The model run was completed at: ",  format(params$run_end_time, "%a %b %d %X %Y %Z"), "\n"
+          ), sep = "")
+
+```
+<br>
+<br>
+
+```{r, table1, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+
+#https://stackoverflow.com/questions/53153537/rmarkdown-setting-the-position-of-kable
+#if you find HOLD_position is not powerful enough to literally PIN your table in the exact position, you may want to 
+# use HOLD_position, which is a more powerful version of this feature
+# percent symbol causing issues in caption
+input_tbl <- params$input_pars %>% 
+  rename("Min. height (m)"="min_ht", 
+         "Max. height (m)"="max_ht", 
+         "Flight height interval (m)"="interval_m",
+         "Station height (m)"="stn_HT",
+         "Min. detection power (dbm)"="xi_min_dbm",
+         "Tag frequency (MHz)"="tag_freq",
+         "Antenna model"="ant_type",
+         "Number of stations"="n_stations",
+         "Number of antennas"="num_ant",
+         "Antenna wavelength (lambda)"="lambda",
+         "Antenna gain (dB)"="D0",
+         "Antenna power constant (p0)"="p0")
+
+
+if(input_tbl$`Tag frequency (MHz)`=="434 MHZ"){
+        input_tbl <- input_tbl[,c("Min. height (m)", "Max. height (m)", "Flight height interval (m)", "Station height (m)", "Tag frequency (MHz)", "Antenna model", "Number of stations", "Number of antennas")]
+      } #else 166 so include the 166 pattern specific params
+input_tbl <- t(input_tbl)
+colnames(input_tbl) <- c("Value")
+
+kbl(input_tbl, booktabs=T, caption = "Input parameters used in IDIOMS run.") %>%
+  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+    column_spec(1,bold=T) 
+
+```
+<br>
+<br>
+
+
+\newpage
+
+## Results tables for the stochastic simulation
+
+<br>
+
+
+```{r, table2, echo=FALSE, message=FALSE, warning=FALSE}
+
+selected_stns <- params$output_df %>% 
+      data.frame() %>% 
+      select(-c(geometry)) %>% 
+      rename("Flight Height"="flt_ht", "Station ID"="station_ID", "Long."="long", "Lat."="lat","Computed antenna angle"="theta")
+
+kbl(selected_stns, booktabs=T, caption = "Stations and selected antenna angles from IDIOMS run.") %>%
+  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>%
+    row_spec(0,bold=T) %>% 
+    column_spec(1,bold=T,color="red", width = "1in") %>% 
+    column_spec(2:5,width = "1in")
+
+```
+
+<br>
+<br>
+
+\newpage
+
+
+```{r, table3, echo=FALSE, message=FALSE, warning=FALSE}
+
+study_covg <- params$study_covg %>% 
+  mutate(max_r=round(max_r, 0), 
+         antenna_coverage_overlap=round(antenna_coverage_overlap, 2), 
+         antenna_coverage_overlap=round(antenna_coverage_overlap, 2)) %>% 
+      rename("Flight height (m)"="flt_ht", "Max detection distance (m)"="max_r", "Prop. of study area covered"="study_area_covered", "Prop. of adjacent antenna overlap"="antenna_coverage_overlap")
+      
+kbl(study_covg, booktabs=T, caption = "Antenna coverage by flight height from IDIOMS run.") %>% 
+  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+    row_spec(0,bold=T) %>% 
+    column_spec(1,bold=T,color="red",width = "1.25in") %>% 
+    column_spec(2:4,width = "1.25in")
+
+```
+
+<br>
+<br>
+
+```{r, table4, echo=FALSE, message=FALSE, warning=FALSE}
+
+if (!is.na(params$simulated_tracks)){
+  simulated_tracks <- params$simulated_tracks %>% 
+    rename("Species group"="taxa",
+           "Flight height (m)"="flt_ht",
+           "Mean prop. detected"="mean_prop", 
+           "Lower 95% CI prop. detected"="CI_lower",
+           "Upper 95% CI prop. detected"="CI_upper")
+  
+  kbl(simulated_tracks, booktabs=T, caption = "Simulated bird tracks bootstrap mean and 95 perc. CI detection rates from IDIOMS run.") %>% 
+  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
+    row_spec(0,bold=T) %>% 
+    column_spec(1,bold=T,color="blue",width = "1in") %>% 
+    column_spec(2,bold=T,color="red",width = "1in") %>% 
+    column_spec(3:5,width = "1.25in")
+  
+} else{
+  print("NO SIMULATED BIRD TRACK DATA AVAILABLE.")
+}
+
+
+```
+
+<br>
+<br>
+
+\newpage
+
+## Results figures for the stochastic simulation
+
+<br>
+
+```{r, fig1, fig.height = 4, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "The proportion of study area covered and max detection range (m) at various flight altitudes as predicted by IDIOMS.", fig.pos="t"}
+
+# Range plot for detection distances and coverage proportions 
+coeff <- max(params$study_covg$max_r)
+ggplot(params$study_covg, aes(x = flt_ht, y = max_r)) +
+  geom_point(aes(col = "red")) +
+  geom_line(aes(col = "red")) +
+  geom_point(aes(
+    x = flt_ht,
+    y = study_area_covered * coeff,
+    col =
+      "blue"
+  )) +
+  geom_line(aes(
+    x = flt_ht,
+    y = study_area_covered * coeff,
+    col =
+      "blue"
+  )) +
+  xlab("Flight height (m)") +
+  ylab("Max est. detection range (m)") +
+  scale_y_continuous(
+    # Add a second axis and specify its features
+    sec.axis = sec_axis(~ . / coeff, name = "Study area coverage prop."),
+    limits = c(0, NA)
+  ) +
+  # ylim(0,NA) +
+  scale_color_manual(
+    values = c("red", "blue"),
+    labels = c("study area covered", "max detection dist.")
+  ) +
+  theme(legend.position = c(.8, .2),
+        legend.title = element_blank())
+    
+
+```
+
+<br>
+<br>
+
+\newpage
+
+
+```{r, fig2, fig.height = 7, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "Map of antenna patterns by flight height as estimated by IDIOMS.", fig.pos="t"}
+
+#buffer bounding box by x km to get view of area with antenna array
+antenna_bbox_buff_merc_lg <- st_union(params$output_df) %>% st_buffer(60000) %>% st_bbox() 
+antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>% st_bbox() 
+
+map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
+#reduce the number of antenna to plot
+MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
+                                                                                                    st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
+study_boundary_merc <- st_transform(params$study_boundary, 3857)  
+
+for (flt_ht in sort(unique(params$output_df$flt_ht))){
+  
+  ant_at_ht <- params$output_df[which(params$output_df$flt_ht==flt_ht),] %>% st_transform(4326)
+  # ant_at_ht_grid <- pattern(ant_at_ht, 0.02, "left2right")
+  # error being caused for 166:
+  # Error in s2_geography_from_wkb(x, oriented = oriented, check = check) : 
+  # Evaluation error: Found 1 feature with invalid spherical geometry.
+  # [1] Loop 0 is not valid: Edge 1998 is degenerate (duplicate vertex).
+  ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
+  # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
+  
+  shut_up(
+    print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+                  geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
+                  geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
+                  geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
+                  geom_sf(data=ant_at_ht_merc, aes(col="navy", fill="navy"), alpha=0.4) +
+                  # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                  geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
+                  scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
+                                                  darkorange1 = "Motus stations", navy="Antenna beam pattern", red="Study area boundary"), guide = "legend") +
+                  coord_sf(xlim = c(antenna_bbox_buff_merc_med[["xmin"]], antenna_bbox_buff_merc_med[["xmax"]]), 
+                           ylim = c(antenna_bbox_buff_merc_med[["ymin"]], antenna_bbox_buff_merc_med[["ymax"]])) +
+                  ggtitle(paste0("Antenna pattern at ", flt_ht, " m flight height")) +
+                  theme_bw() +
+                  guides(color = guide_legend(nrow = 2)) +
+                  theme(axis.title = element_blank(), 
+                        legend.title = element_blank(),
+                        legend.position="bottom")))
+  
+  #There needs to be spaces between plots in R Markdown if they are to be given their own caption
+  #https://stackoverflow.com/questions/52788015/looping-through-a-list-of-ggplots-and-giving-each-a-figure-caption-using-knitr
+  cat('\n\n')
+  
+}
+  
+  
+  
+```
+
+<br>
+<br>
+
+\newpage
+
+
+```{r, fig3, fig.height = 7, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "Map of antenna patterns by flight height and simulated seabird tracks as estimated by IDIOMS.", fig.pos="t"}
+
+if (!is.na(params$seabird_sims)){
+  #buffer bounding box by x km to get view of area with antenna array
+  antenna_bbox_buff_merc_lg <- st_union(params$output_df) %>% st_buffer(60000) %>% st_bbox() 
+  antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>% st_bbox() 
+  
+  map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
+  #reduce the number of antenna to plot
+  MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
+                                                                                                      st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+  MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
+  study_boundary_merc <- st_transform(params$study_boundary, 3857)  
+  
+  for (flt_ht in sort(unique(params$output_df$flt_ht))){
+  
+    ant_at_ht <- params$output_df[which(params$output_df$flt_ht==flt_ht),] %>% st_transform(4326)
+    # ant_at_ht_grid <- pattern(ant_at_ht, 0.02, "left2right")
+    ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
+    # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
+  
+    shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+                    geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
+                    geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
+                    geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
+                    geom_sf(data=ant_at_ht_merc, aes(col="navy",  fill="navy"), alpha=0.4) +
+                    # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                    geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
+                    geom_sf(data=params$seabird_sims, aes(col="lawngreen")) +
+                    scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
+                                                    darkorange1 = "Motus stations", navy="Antenna beam pattern", 
+                                                    red="Study area boundary", lawngreen="Seabird tracks"), guide = "legend") +
+                    coord_sf(xlim = c(antenna_bbox_buff_merc_med[["xmin"]], antenna_bbox_buff_merc_med[["xmax"]]), 
+                             ylim = c(antenna_bbox_buff_merc_med[["ymin"]], antenna_bbox_buff_merc_med[["ymax"]])) +
+                    ggtitle(paste0("Antenna pattern at ", flt_ht, " m flight height with seabird tracks")) +
+                    theme_bw() +
+                    guides(color = guide_legend(nrow = 2)) +
+                    theme(axis.title = element_blank(), 
+                          legend.title = element_blank(),
+                          legend.position="bottom")))
+    
+    #There needs to be spaces between plots in R Markdown if they are to be given their own caption
+    #https://stackoverflow.com/questions/52788015/looping-through-a-list-of-ggplots-and-giving-each-a-figure-caption-using-knitr
+    cat('\n\n')
+    
+  }
+} else {
+  ggplot() +
+    theme_void() +
+    geom_text(aes(0,0,label="This plot left intentionally blank.\nNo seabird simulations run.")) +
+    xlab(NULL) #optional, but safer in case another theme is applied later
+  
+}
+  
+  
+  
+```
+
+<br>
+<br>
+
+\newpage
+
+
+```{r, fig4, fig.height = 7, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "Map of antenna patterns by flight height and simulated shorebird tracks as estimated by IDIOMS.", fig.pos="t"}
+
+if (!is.na(params$shorebird_sims)){
+  #buffer bounding box by x km to get view of area with antenna array
+  antenna_bbox_buff_merc_lg <- st_union(params$output_df) %>% st_buffer(60000) %>% st_bbox() 
+  antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>% st_bbox() 
+  
+  map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
+  #reduce the number of antenna to plot
+  MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
+                                                                                                      st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+  MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
+  study_boundary_merc <- st_transform(params$study_boundary, 3857)  
+  
+  for (flt_ht in sort(unique(params$output_df$flt_ht))){
+  
+    ant_at_ht <- params$output_df[which(params$output_df$flt_ht==flt_ht),] %>% st_transform(4326)
+    # ant_at_ht_grid <- pattern(ant_at_ht, 0.02, "left2right")
+    ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
+    # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
+  
+    shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+                    geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
+                    geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
+                    geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
+                    geom_sf(data=ant_at_ht_merc, aes(col="navy", fill="navy"), alpha=0.4) +
+                    # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                    geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
+                    geom_sf(data=params$shorebird_sims, aes(col="lawngreen")) +
+                    scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
+                                                    darkorange1 = "Motus stations", navy="Antenna beam pattern", 
+                                                    red="Study area boundary", lawngreen="Shorebird tracks"), guide = "legend") +
+                    coord_sf(xlim = c(antenna_bbox_buff_merc_med[["xmin"]], antenna_bbox_buff_merc_med[["xmax"]]), 
+                             ylim = c(antenna_bbox_buff_merc_med[["ymin"]], antenna_bbox_buff_merc_med[["ymax"]])) +
+                    ggtitle(paste0("Antenna pattern at ", flt_ht, " m flight height with shorebird tracks")) +
+                    theme_bw() +
+                    guides(color = guide_legend(nrow = 2)) +
+                    theme(axis.title = element_blank(), 
+                          legend.title = element_blank(),
+                          legend.position="bottom")))
+    
+    #There needs to be spaces between plots in R Markdown if they are to be given their own caption
+    #https://stackoverflow.com/questions/52788015/looping-through-a-list-of-ggplots-and-giving-each-a-figure-caption-using-knitr
+    cat('\n\n')
+    
+  }
+} else {
+  ggplot() +
+    theme_void() +
+    geom_text(aes(0,0,label="This plot left intentionally blank.\nNo shorebird simulations run.")) +
+    xlab(NULL) #optional, but safer in case another theme is applied later
+  
+}
+  
+  
+  
+```
+
+<br>
+<br>
+
