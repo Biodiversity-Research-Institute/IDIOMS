@@ -3,7 +3,7 @@
 library(shiny)
 library(shinydashboard)
 library(shinybusy)
-# library(shinycssloaders)
+library(profmem)
 library(leaflet)
 library(leaflet.esri)
 library(rhandsontable)
@@ -46,8 +46,9 @@ library(kableExtra)
 library(basemaps)
 library(oce)
 
+# Rprofmem("idioms.memprof.1",threshold=400000)
+
 row_id <- 0
-# bkgimg <- ""
 
 # Function to create icons and labels with info about parameters
 label.help <- function(label, id){

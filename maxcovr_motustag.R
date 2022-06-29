@@ -83,6 +83,7 @@ max_coverage_motustag <- function(proposed_facility, user, distance_cutoff,
   # A <- binary_distance_matrix(facility = proposed_facility, 
   #                             user = user_not_covered, distance_cutoff = distance_cutoff, 
   #                             d_proposed_user = d_proposed_user)
+  # p <- profmem({
   A <- binary_distance_matrix_nanotag(facility = proposed_facility, 
                                       user = user, distance_cutoff = distance_cutoff, 
                                       d_proposed_user = d_proposed_user)
@@ -98,6 +99,9 @@ max_coverage_motustag <- function(proposed_facility, user, distance_cutoff,
   bin <- matrix(rep(0, Nx), ncol = 1)
   constraint_matrix <- rbind(Ain, d_vec)
   rhs_matrix <- rbind(bin, n_added)
+  #free memory
+  rm(list=c("Ain", "d_vec", "bin"))
+
   constraint_directions <- c(rep("<=", Nx), "==")
   if (solver == "lpSolve") {
     solution <- lpSolve::lp(direction = "max", objective.in = c_vec, 
@@ -106,6 +110,7 @@ max_coverage_motustag <- function(proposed_facility, user, distance_cutoff,
                             all.bin = TRUE, num.bin.solns = 1, use.rw = TRUE)
     solution$solution <- as.integer(solution$solution)
   }
+  
   if (solver == "glpk") {
     solution <- Rglpk::Rglpk_solve_LP(obj = c_vec, mat = constraint_matrix, 
                                       dir = constraint_directions, rhs = rhs_matrix, bounds = NULL, 
@@ -137,7 +142,10 @@ max_coverage_motustag <- function(proposed_facility, user, distance_cutoff,
             n_added = n_added, 
             A = A, user_id = user_id_list, solution = solution, 
             model_call = model_call)
-  model_result <- extract_mc_results_motustag(x)  #may be able t
+  model_result <- extract_mc_results_motustag(x)  
+  # rm(list("x", "constraint_matrix", "rhs_matrix", "c_vec"))
+  # }, threshold = 100000)
+  # print(p)
   return(model_result)
 }
 

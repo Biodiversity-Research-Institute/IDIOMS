@@ -268,13 +268,16 @@ for (flt_ht in sort(unique(params$output_df$flt_ht))){
   ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
   # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
   
+  sf_use_s2(FALSE)
+  ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
+      
   shut_up(
     print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
                   geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                   geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                   geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
                   geom_sf(data=ant_at_ht_merc, aes(col="navy", fill="navy"), alpha=0.4) +
-                  # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                  geom_sf(data=ant_at_ht_center_sf, col="red", fill=NA) +
                   geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
                   scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
                                                   darkorange1 = "Motus stations", navy="Antenna beam pattern", red="Study area boundary"), guide = "legend") +
@@ -323,18 +326,20 @@ if (!is.na(params$seabird_sims)){
     # ant_at_ht_grid <- pattern(ant_at_ht, 0.02, "left2right")
     ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
     # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
+    sf_use_s2(FALSE)
+    ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
   
     shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
                     geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                     geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                     geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
                     geom_sf(data=ant_at_ht_merc, aes(col="navy",  fill="navy"), alpha=0.4) +
-                    # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                    geom_sf(data=ant_at_ht_center_sf, col="red", fill=NA) +
                     geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
-                    geom_sf(data=params$seabird_sims, aes(col="lawngreen")) +
+                    geom_sf(data=params$seabird_sims, aes(col="purple")) +
                     scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
                                                     darkorange1 = "Motus stations", navy="Antenna beam pattern", 
-                                                    red="Study area boundary", lawngreen="Seabird tracks"), guide = "legend") +
+                                                    red="Study area boundary", purple="Seabird tracks"), guide = "legend") +
                     coord_sf(xlim = c(antenna_bbox_buff_merc_med[["xmin"]], antenna_bbox_buff_merc_med[["xmax"]]), 
                              ylim = c(antenna_bbox_buff_merc_med[["ymin"]], antenna_bbox_buff_merc_med[["ymax"]])) +
                     ggtitle(paste0("Antenna pattern at ", flt_ht, " m flight height with seabird tracks")) +
@@ -387,18 +392,20 @@ if (!is.na(params$shorebird_sims)){
     # ant_at_ht_grid <- pattern(ant_at_ht, 0.02, "left2right")
     ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
     # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
-  
+    sf_use_s2(FALSE)
+    ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
+    
     shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
                     geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                     geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                     geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
                     geom_sf(data=ant_at_ht_merc, aes(col="navy", fill="navy"), alpha=0.4) +
-                    # geom_sf(data=ant_at_ht_grid_merc, col="navy", fill=NA) +
+                    geom_sf(data=ant_at_ht_center_sf, col="red", fill=NA) +
                     geom_sf(data=study_boundary_merc, aes(col="red"), fill=NA) +
-                    geom_sf(data=params$shorebird_sims, aes(col="lawngreen")) +
+                    geom_sf(data=params$shorebird_sims, aes(col="yellow")) +
                     scale_color_identity(labels = c(gray40 = "BOEM wind leases", gray80="BOEM planning areas",
                                                     darkorange1 = "Motus stations", navy="Antenna beam pattern", 
-                                                    red="Study area boundary", lawngreen="Shorebird tracks"), guide = "legend") +
+                                                    red="Study area boundary", yellow="Shorebird tracks"), guide = "legend") +
                     coord_sf(xlim = c(antenna_bbox_buff_merc_med[["xmin"]], antenna_bbox_buff_merc_med[["xmax"]]), 
                              ylim = c(antenna_bbox_buff_merc_med[["ymin"]], antenna_bbox_buff_merc_med[["ymax"]])) +
                     ggtitle(paste0("Antenna pattern at ", flt_ht, " m flight height with shorebird tracks")) +

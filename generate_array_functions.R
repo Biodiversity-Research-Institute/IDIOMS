@@ -139,7 +139,7 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     #expand ref buffer distance as needed to optimize
 
     ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-    grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 500)
+    grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 750)
     #get reference grid for optimization routine
     grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
 
@@ -179,11 +179,11 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     #                                                                   user = grid_df,
     #                                                                   n_added = n_stations,
     #                                                                   distance_cutoff = max_r*0.75)
-    
+
     stn_placement_maxcovr_dist_mat_grid_beams <- max_coverage_motustag(proposed_facility = all_stns_df,
                                                                        user = grid_df,
                                                                        n_added = n_stations,
-                                                                       distance_cutoff = max_r ) #, solver = "lpSolve")
+                                                                       distance_cutoff = max_r) #, solver = "lpSolve")
 
     stn_placement_maxcovr_grid_detect <- SpatialPointsDataFrame(coords=stn_placement_maxcovr_dist_mat_grid_beams$facility_selected[[1]][,c("long", "lat")], data = stn_placement_maxcovr_dist_mat_grid_beams$facility_selected[[1]], proj4string=WGS84)
 
@@ -194,10 +194,13 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     #optimize angles at flight height
     # optimized_stn_angles_internal <- antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
     #                                                                single_antenna_optim = single_antenna_optim, detect_locs = all_stns_sf)
-
+    # p_mem <- profmem({
     optimized_stn_angles_internal <- suppressWarnings(antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
                                                                    single_antenna_optim = single_antenna_optim, detect_locs = grid_sf, debug.out=debug.out))
-
+    # }, threshold = 100000)
+    # print(p_mem)
+    # write(p_mem, file="p_mem.txt")
+    
     #determine coverage of study area
     study_area_covered <- as.numeric(st_area(st_intersection(st_union(optimized_stn_angles_internal$geometry),study_area_sf))/st_area(study_area_sf))
     ref_area_sf_covered <- as.numeric(st_area(st_intersection(st_union(optimized_stn_angles_internal$geometry),ref_area_sf))/st_area(ref_area_sf))
@@ -218,7 +221,7 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
       #expand ref buffer distance as needed to optimize
 
       ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-      grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 500)
+      grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 750)
       #get reference grid for optimization routine
       grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
 
@@ -256,14 +259,10 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     selected_stns_at_multi_ht_df <- rbind(selected_stns_at_multi_ht_df, selected_locs)
     
     #clean up memory
-    rm(single_antenna_optim)
-    rm(all_proposed_stns_grid_detect_WebMerc)
-    rm(stn_placement_maxcovr_grid_detect)
-    rm(stn_placement_maxcovr_dist_mat_grid_beams)
-    rm(optimized_stn_angles_internal)
-    rm(selected_locs)
-    # gc()
-    # return(selected_locs)
+    rm(list=c("single_antenna_optim","all_proposed_stns_grid_detect_WebMerc","stn_placement_maxcovr_grid_detect",
+            "stn_placement_maxcovr_dist_mat_grid_beams","optimized_stn_angles_internal","selected_locs"))
+
+    gc()
   } 
   #)
   # selected_stns_at_multi_ht_df <- data.table::rbindlist(selected_stns_at_multi_ht)

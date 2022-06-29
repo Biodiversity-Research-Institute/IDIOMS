@@ -176,6 +176,7 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
   
   #cycle through list of proposed station pairs to get best coverage for pairs
   station_pair_list=list()
+
   for (i in 1:nrow(point_pairs_optim)) {
     max_detected = 0
     stn1_val <- point_pairs_optim[i, ]$stn1
@@ -215,6 +216,9 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     # return(build_stations)
     station_pair_list[[i]] <- list("max_detected"=max_detected, "max_angles"=max_angles)
   }
+
+  
+  
   # station_pair_list_combine <- data.frame()
   station_pair_list_combine <- lapply(station_pair_list, function(x) {
     tbl <- as.data.frame(x$max_angles)
@@ -229,7 +233,8 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     station_pair_list_combine <- unique(station_pair_list_combine, by=c("station", "theta"))
   station_pair_list_combine$id <- unlist(lapply(1:(nrow(station_pair_list_combine)/n_antennas), function(x) rep(x, n_antennas)))
   #determine which stations are duplicate and use if same or use mean (rounded to nearest 15) for angles
-  
+
+
   #generates optimal list of start angles from which we can get pattern
   stn_dups <- station_pair_list_combine %>% 
     dplyr::group_by(station, id) %>% 
@@ -269,6 +274,8 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
       ant_optimized_stn_polys_sf <- station_set
     }
   }
+
+  
   #added below to create regular df from lists
   ant_optimized_stn_polys_sf$station <- unlist(ant_optimized_stn_polys_sf$station)
   ant_optimized_stn_polys_sf$theta <- unlist(ant_optimized_stn_polys_sf$theta)

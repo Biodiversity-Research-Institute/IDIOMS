@@ -28,6 +28,9 @@
 #   08 Jun 2022: Major enhancement to include simulated tracks and detection estimation of those tracks, R Markdown report
 # 0.61 - 15 Jun 2022: Added shapefile outputs to the data export
 # 0.62 - 16 June 2022: Changed coverage optimizer to better handle 434 data. Was putting towers clumped together to much. 
+# 0.63 - 28 Jun 2022: Reduced grid size to 1km spacing as it was causing memory issues on shiny apps.io
+# 0.64 - 29 Jun 2022: Minor changes to grid size to 750 from 1km to improve optimization and stay under memory issues and
+#  changes to report to add selected station and color simulated tracks
 
 # source("helpers.R")
 # source("generate_array_functions.R")
@@ -50,7 +53,7 @@ source(file.path(currentdir, "MOTUS_scripts.R"))
 source(file.path(currentdir, "detection_pattern_166.R"))
 source(file.path(currentdir, "detection_pattern_434.R"))
 
-IDIOMS_version = "0.62 - Jaguar"
+IDIOMS_version = "0.64 - Lemur"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -66,9 +69,9 @@ ui <- dashboardPage(
       class = "dropdown",
       a(id = "download_manual",
         icon('fa-solid fa-book', "fa-2x"),
-        style = "padding-top: 10px; padding-bottom: 10px",
+        style = "padding-top: 10px; padding-bottom: 10px;padding-right: 6px; padding-left: 6px",
         target = '_blank',
-        href = "IDIOMS_user_manual draft_20220603.pdf"),
+        href = "IDIOMS_user_manual draft_20220628.pdf"),
       style = "float: left"
     ),
     tags$li(
@@ -76,7 +79,7 @@ ui <- dashboardPage(
       a(
         icon('github', "fa-2x"),
         href = 'https://github.com/Biodiversity-Research-Institute/IDIOMS',
-        style = "padding-top: 10px; padding-bottom: 10px",
+        style = "padding-top: 10px; padding-bottom: 10px; padding-right: 6px; padding-left: 6px",
         target = '_blank',
         id = "lbl_codeLink"
       ),
@@ -88,7 +91,7 @@ ui <- dashboardPage(
         icon('bug', "fa-2x"),
         href = 'https://github.com/Biodiversity-Research-Institute/IDIOMS/issues',
         #exclamation-circle
-        style = "padding-top: 10px; padding-bottom: 10px",
+        style = "padding-top: 10px; padding-bottom: 10px; padding-right: 6px; padding-left: 6px",
         target = '_blank',
         id = "lbl_issuesLink"
       ),
@@ -108,7 +111,7 @@ ui <- dashboardPage(
       a(
         img(src = "BRI_color_logo_no_words.png", height = "40px"),
         href = 'https://www.briwildlife.org',
-        style = "padding-top: 5px; padding-bottom: 5px;",
+        style = "padding-top: 5px; padding-bottom: 5px; padding-right: 6px; padding-left: 6px",
         target = '_blank',
         id = "lbl_BRILogoLink"
       ),
@@ -119,7 +122,7 @@ ui <- dashboardPage(
       a(
         img(src = "USFWS.png", height = "40px"),
         href = 'https://www.fws.gov/',
-        style = "padding-top: 5px; padding-bottom: 5px;",
+        style = "padding-top: 5px; padding-bottom: 5px; padding-right: 6px; padding-left: 6px",
         target = '_blank',
         id = "lbl_FWSLogoLink"
       ),
@@ -128,9 +131,20 @@ ui <- dashboardPage(
     tags$li(
       class = "dropdown",
       a(
+        img(src = "URI.png", height = "40px"),
+        href = 'https://www.uri.edu/',
+        style = "padding-top: 5px; padding-bottom: 5px; padding-right: 6px; padding-left: 6px",
+        target = '_blank',
+        id = "lbl_URILogoLink"
+      ),
+      style = "float: right"
+    ),
+    tags$li(
+      class = "dropdown",
+      a(
         img(src = "NYSERDA.png", height = "40px"),
         href = 'https://www.NYSERDA.ny.gov',
-        style = "padding-top: 5px; padding-bottom: 5px",
+        style = "padding-top: 5px; padding-bottom: 5px; padding-right: 6px; padding-left: 6px",
         target = '_blank',
         id = "lbl_NYSERDALogoLink"
       ),
@@ -451,14 +465,15 @@ ui <- dashboardPage(
             width = "85%",
             inputId = "numInput_optimPars_MinFltHt",
             label = "Min. detection flight height",
-            min = 0,
+            min = 1,
             step = 5,
             value = 25),
           numericInput(
             width = "85%",
             inputId = "numInput_optimPars_MaxFltHt",
-            label = "Max. detection flight height",
+            label = "Max. detection flight height (max 1500m)",
             min = 10,
+            max = 1500,
             step = 5,
             value = 125),
           numericInput(
@@ -575,6 +590,7 @@ ui <- dashboardPage(
             inputId = "n_sim_birds",
             label = "Number of birds to simulate.",
             min = 5,
+            max = 1000,
             step = 5,
             value = 25
           ),
@@ -1104,26 +1120,27 @@ server <- function(input, output, session) {
   observeEvent(study_area(), {
     values$study_boundary <- study_area()
     #create grid to optimize against - try 500 m grid for
-    values$ref_grid <- create_grid(study = study_area(), resolution_m = 500)
+    #28 Jun 22 - grid size may be cause of exceeding memory (8gb), increase to 750 to see if this helps. 
+    values$ref_grid <- create_grid(study = study_area(), resolution_m = 750)
     #Create the buffer around the study area boundary for avoidance optim
     study_buff_webmerc <- spTransform(study_area(), WebMerc)
     values$avoid_buffer <- gDifference(gBuffer(study_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30), 
                                        study_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
-    values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 500)
+    values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
   })
   
   observeEvent(input_boundary(), {
     values$study_boundary <- input_boundary()
     #create grid to optimize against - try  500 m grid for
-    values$ref_grid <- create_grid(study = input_boundary(), resolution_m = 500)
+    values$ref_grid <- create_grid(study = input_boundary(), resolution_m = 750)
     #Create the buffer around the input_boundary for avoidance optim
     input_bound_buff_webmerc <- spTransform(isolate(input_boundary()), WebMerc)
     
     values$avoid_buffer <- gDifference(gBuffer(input_bound_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30),
                                        input_bound_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
-    values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 500)
+    values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
   })
 
   observeEvent(input$default_array, {
@@ -1298,14 +1315,35 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    if (input$numInput_optimPars_MaxFltHt < input$numInput_optimPars_MinFltHt){
+    if (input$numInput_optimPars_MaxFltHt > 1500){
       showNotification(
-        "Please choose a maximum flight height value greater than the minimum flighe height value!",
+        "Please choose a maximum flight height value less than or equal to 1500 m.",
         duration = 6,
         type = "error"
       )
       return(NULL)
     }
+    
+    if (input$numInput_optimPars_MinFltHt < 0){
+      showNotification(
+        "Please choose a minimum flight height value greater than 0 m.",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    if (input$numInput_optimPars_MaxFltHt < input$numInput_optimPars_MinFltHt){
+      showNotification(
+        "Please choose a maximum flight height value greater than the minimum flight height value!",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    
+    
     # browser()
     # #data validation before proceeding
     # validate(
@@ -1353,7 +1391,7 @@ server <- function(input, output, session) {
       run_times$start <- Sys.time()
       #make download button visible now since data will be calculated
       runjs("document.getElementById('downloadData').style.visibility = 'visible';")
-
+      
       # #use input_stn_locs if added, otherwise use default study area
       # #need to get lat/longs so transform to WGS84
       # stn_grid_WGS84 <- st_transform(values$stn_grid, WGS84)
@@ -1872,6 +1910,24 @@ server <- function(input, output, session) {
     #affine shift simulated tracks to center of study area
     # boundary_center <- st_as_sf(study_area()) %>% st_transform(3857) %>% st_centroid()
     
+    if (input$n_boot < 100){
+      showNotification(
+        "Please choose bootstrap sample of at least 100.",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    if (input$n_sim_birds < 5 | input$n_sim_birds > 1000){
+      showNotification(
+        "Please enter a number greater than 4 no more than 1000 for the simulated number of birds.",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
+    
     start_sim_loc <- sim_pt_coords()[which(sim_pt_coords()$dir==input$cardinal_dir_sim), ]
 
     #shift and transform (The Leaflet package expects all point, line, and shape data to be specified in 
@@ -1910,6 +1966,23 @@ server <- function(input, output, session) {
     #Prep simulated tracks for rendering on maps by selecting subset and orienting in proper direction to study area
     #affine shift simulated tracks to center of study area
     # boundary_center <- st_as_sf(study_area()) %>% st_transform(3857) %>% st_centroid()
+    if (input$n_boot < 100){
+      showNotification(
+        "Please choose bootstrap sample of at least 100.",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    if (input$n_sim_birds < 5 | input$n_sim_birds > 1000){
+      showNotification(
+        "Please enter a number greater than 4 no more than 1000 for the simulated number of birds.",
+        duration = 6,
+        type = "error"
+      )
+      return(NULL)
+    }
     
     start_sim_loc <- sim_pt_coords()[which(sim_pt_coords()$dir==input$cardinal_dir_sim), ]
     
