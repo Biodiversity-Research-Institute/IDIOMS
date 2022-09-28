@@ -74,7 +74,9 @@ IDIOMS was developed by Biodiversity Research Institute and the U.S. Fish and Wi
 option_names <- c("Manual selection", "Coverage optimized", "Avoidance optimized", "Track optimized")
 
 
-cat(paste0("IDIOMS - Informing the Design and Implementation of Offshore Motus Systems version ", params$IDIOMS_version,"\nwas run for ", params$option, "\n", 
+cat(paste0("IDIOMS - Informing the Design and Implementation of Offshore Motus Systems.", "\n", 
+          "Version: ", params$IDIOMS_version, "\n",
+          "Run type: ", params$option, "\n", 
           "Project: ", params$project, "\n",
           "Modeler: ", params$modeler, "\n",
           "The model run was started at: ",  format(params$run_start_time, "%a %b %d %X %Y %Z"), "\n",
@@ -135,8 +137,8 @@ selected_stns <- params$output_df %>%
       select(-c(geometry)) %>% 
       rename("Flight Height"="flt_ht", "Station ID"="station_ID", "Long."="long", "Lat."="lat","Computed antenna angle"="theta")
 
-kbl(selected_stns, booktabs=T, caption = "Stations and selected antenna angles from IDIOMS run.") %>%
-  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>%
+kbl(selected_stns, booktabs=T, longtable = TRUE, caption = "Stations and selected antenna angles from IDIOMS run.") %>%
+  kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped", "repeat_header")) %>%
     row_spec(0,bold=T) %>% 
     column_spec(1,bold=T,color="red", width = "1in") %>% 
     column_spec(2:5,width = "1in")

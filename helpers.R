@@ -75,7 +75,7 @@ startUpValues <- list(
   ),
 
   studyareaPars = list(
-    studyareaPars_nlocs = 100, studyareaPars_spacing_m = 2000 ,studyareaPars_Latitude = 41.5, studyareaPars_Longitude = -70.25,
+    studyareaPars_nlocs = 100, studyareaPars_spacing_m = 1852 ,studyareaPars_Latitude = 41.5, studyareaPars_Longitude = -70.25,
     studyareaPars_width = 20, studyareaPars_length = 20
   ),
   thresholdsPars = list(min_coverage = 0.75)

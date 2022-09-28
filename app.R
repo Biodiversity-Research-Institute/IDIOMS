@@ -31,6 +31,10 @@
 # 0.63 - 28 Jun 2022: Reduced grid size to 1km spacing as it was causing memory issues on shiny apps.io
 # 0.64 - 29 Jun 2022: Minor changes to grid size to 750 from 1km to improve optimization and stay under memory issues and
 #  changes to report to add selected station and color simulated tracks
+# 0.65 - 29 Jun 2022: Fixed an error in study area creation by reducing distance for optimization, also fixed some Motus antenna
+#  estimation patterns. 
+#  30 Jun 2022: slight changes to code (reduced buffering) to reduce out of memory errors for avoidance optim.
+
 
 # source("helpers.R")
 # source("generate_array_functions.R")
@@ -53,7 +57,7 @@ source(file.path(currentdir, "MOTUS_scripts.R"))
 source(file.path(currentdir, "detection_pattern_166.R"))
 source(file.path(currentdir, "detection_pattern_434.R"))
 
-IDIOMS_version = "0.64 - Lemur"
+IDIOMS_version = "0.65 - Marmoset"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -995,10 +999,10 @@ server <- function(input, output, session) {
     center_pt_coords <- st_coordinates(center_pt)
     center_x <- center_pt_coords[[1]]
     center_y <- center_pt_coords[[2]]
-    ll <- (c(center_x - x_half, center_y - y_half / 2))
-    ul <- (c(center_x - x_half, center_y + y_half / 2))
-    ur <- (c(center_x + x_half, center_y + y_half / 2))
-    lr <- (c(center_x + x_half, center_y - y_half / 2))
+    ll <- (c(center_x - x_half, center_y - y_half))
+    ul <- (c(center_x - x_half, center_y + y_half))
+    ur <- (c(center_x + x_half, center_y + y_half))
+    lr <- (c(center_x + x_half, center_y - y_half))
     pts <-
       st_sf(geometry = st_sfc(st_multipoint(rbind(ll, ul, ur, lr)), crs = 3857))
     poly <-
@@ -1124,7 +1128,7 @@ server <- function(input, output, session) {
     values$ref_grid <- create_grid(study = study_area(), resolution_m = 750)
     #Create the buffer around the study area boundary for avoidance optim
     study_buff_webmerc <- spTransform(study_area(), WebMerc)
-    values$avoid_buffer <- gDifference(gBuffer(study_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30), 
+    values$avoid_buffer <- gDifference(gBuffer(study_buff_webmerc, width=isolate(input$numInput_avoidance_dist)*1000, quadsegs=30), 
                                        study_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
     values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
@@ -1386,6 +1390,8 @@ server <- function(input, output, session) {
           input$numInput_optimPars_FltHtInc
         )
       )
+    #clear memory just in case
+    gc()
     
     withProgress(message = "Calculation in progress", detail = 'This may take a while...', value = 0, min = 0,  max = 1, {
       run_times$start <- Sys.time()
@@ -1474,8 +1480,8 @@ server <- function(input, output, session) {
             # updateProgress = updateProgress,
             local_tz = values$local_tz,
             # max_rbuff_prop = input$numInput_optimPars_percmaxr,
-            max_rbuff_prop = 0.75
-            # debug.out = output
+            max_rbuff_prop = 0.75,
+            optim_type="coverage"
           )
       }
       
@@ -1516,8 +1522,8 @@ server <- function(input, output, session) {
             # updateProgress = updateProgress,
             local_tz = values$local_tz,
             # max_rbuff_prop = input$numInput_optimPars_percmaxr,
-            max_rbuff_prop = 0.75# changed from 0.33 to 0.5
-            # debug.out = output
+            max_rbuff_prop = 0.75,# changed from 0.33 to 0.5
+            optim_type="avoid"
           )
       }
       
@@ -1710,7 +1716,7 @@ server <- function(input, output, session) {
           ),
         group = "Active Motus receivers",
         color = "orange",
-        radius = 3,
+        radius = 2,
         fill = FALSE,
         weight = 1
       ) %>%
@@ -2327,8 +2333,8 @@ server <- function(input, output, session) {
       # set up parameters to pass to Rmd document
       params <- list(IDIOMS_version = IDIOMS_version, project = input$project_name, modeler = input$modeler, run_start_time = run_times$start, 
                      run_end_time = run_times$end, input_pars = input_data, study_boundary = study_boundary, study_covg = values$select_stns_covg_by_hgt,
-                     output_df = values$selected_stn_data_angles, option = input$op_type, 
-                     simulated_tracks = simulated_tracks, seabird_sims = values$seabird_lines, shorebird_sims = values$shorebird_lines)
+                     output_df = values$selected_stn_data_angles, option = input$op_type, simulated_tracks = simulated_tracks, 
+                     seabird_sims = values$seabird_lines, shorebird_sims = values$shorebird_lines)
       save(params, file = "data/params.Rdata")
       
       # Knit the document, passing in the `params` list, and eval it in a

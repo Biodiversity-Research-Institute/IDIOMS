@@ -177,7 +177,8 @@ MOTUS_rotation <- function (x, y, z, angle) {
 MOTUS_antenna_geometry <- function(ID, ant_type, lat, lng, bearing = NULL) {
   require(sf)
   #function to generate geometry for each antenna type as idealized detection geometry
-  if (ant_type %in% c('omni-mast', 'omni-whip', 'j-pole', 'monopole')) {
+  #ATG- added monopole-da, 'monopole-maple' not listed, but giving large antenna pattern as fake antenna
+  if (ant_type %in% c('omni-mast', 'omni-whip', 'j-pole', 'monopole', 'monopole-da', 'monopole-maple')) {
     ant_geom <-
       createOmni(lat,
                  lng)
@@ -191,7 +192,8 @@ MOTUS_antenna_geometry <- function(ID, ant_type, lat, lng, bearing = NULL) {
                       lng,
                       bearing)
       } else {
-        if (ant_type %in% c('yagi-6', 'yagi-5', 'custom-6', 'yagi-4')) {
+        #ATG - added yagi-3, yagi-5-maple
+        if (ant_type %in% c('yagi-6', 'yagi-5', 'custom-6', 'yagi-4', 'yagi-3', 'yagi-3-sam', 'yagi-3-maple', 'yagi-5-maple')) {
           ant_geom <-
             createYagi5(lat,
                         lng,
@@ -206,13 +208,16 @@ MOTUS_antenna_geometry <- function(ID, ant_type, lat, lng, bearing = NULL) {
     } else {
       #Create circle poly with radius 15000
       #buffer point at lat long by 15000 m
+      # ATG - PLoring asked to reduce these to 1km - 29 Jun 22
       # WebMerc
       #WGS84=4326
       #WebMerc=3857
       point_merc <-
         st_sfc(st_point(c(lng, lat))) %>% st_sf(crs = 4326) %>% st_transform(crs = 3857)
       ant_geom <-
-        st_buffer(point_merc, 15000) %>% st_transform(crs = 4326)
+        # st_buffer(point_merc, 15000) %>% st_transform(crs = 4326)
+        st_buffer(point_merc, 1000) %>% st_transform(crs = 4326)
+      
     }
   }
   suppressWarnings(if(class(ant_geom)=="sf" | class(ant_geom)=="data.frame"){
@@ -286,15 +291,14 @@ if (file.exists("data/MOTUS_receiver_antennas_active_sf.RData")){
     }, error = function(err) {
       # error handler picks up where error was generated
       print(paste("MY_ERROR:  ",err))
-      load("data/MOTUS_receiver_antennas_active_sf.RData", verbose = F)
+      suppressWarnings(load("data/MOTUS_receiver_antennas_active_sf.RData", verbose = F))
 
     }, finally = {
 
     })  #end trycatch
   } else {
     print("Loading existing Motus data - within 1 week of the data age")
-
-    load("data/MOTUS_receiver_antennas_active_sf.RData", verbose = F)
+    suppressWarnings(load("data/MOTUS_receiver_antennas_active_sf.RData", verbose = F))
 
   }
 } else {

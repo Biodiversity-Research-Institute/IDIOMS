@@ -51,10 +51,8 @@ detection_limit_distance <- function(z_in, ant_HT, min_xi_dbm, x_max_end = 10000
       power_dbm = xi_square_calc_dbm(x=x_val, y=0, z=z_in, XT=0, YT=0, HT=ant_HT, theta=0)
       power_vals <- rbind(power_vals, cbind("x_val"=x_val,"power_dbm"=power_dbm))
     }
-    # print(power_vals)
     x_max_detect_vals <- power_vals[which(power_vals$power_dbm >= min_xi_dbm), ]
     x_max_detect <- max(x_max_detect_vals$x_val) #determine max dist detected
-    # print(x_max_detect)
     if (x_max_detect < x_max_end) {
       continue_proc = F
     } else {
@@ -145,7 +143,6 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     near_pts_idx <- rbindlist(lapply(near_pts$nn, function(x) as.data.table(cbind(x[2:3])))) #get index of the second/third closest (first is itself)
     near_pts_dist <- rbindlist(lapply(near_pts$dist, function(x) as.data.table(cbind(x[2:3])))) #get distance of the second/third closest (first is itself)
   } else{
-    # browser()
     near_pts_idx <- rbindlist(lapply(near_pts$nn, function(x) as.data.table(cbind(x[2])))) #get index of the second/third closest (first is itself)
     near_pts_dist <- rbindlist(lapply(near_pts$dist, function(x) as.data.table(cbind(x[2])))) #get distance of the second/third closest (first is itself)
   }
@@ -161,8 +158,11 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
   point_pairs_no_dups <- point_pairs_no_dups[order(point_pairs_no_dups$stn1_2_dist),]
   #select top n stations -1 for comparison
   # point_pairs_optim <-  point_pairs_no_dups[1:(n_stations-1),]
-  point_pairs_optim <-  point_pairs_no_dups[1:n_stations,]
-  
+  #ATG - 02 Aug 22 This sometimes misses a station at large number of stations
+  # Due to the sorting and then selecting only n stations
+  # point_pairs_optim <-  point_pairs_no_dups[1:n_stations,]
+  #Try using the full list - this is much longer, but does return an answer
+  point_pairs_optim <- point_pairs_no_dups
   # st_area(st_intersection())
   ant_angle_seq <- seq(0,floor(360/n_antennas), ant_ang_inc)
   n_ant_ang_seq <- length(ant_angle_seq)
@@ -217,8 +217,6 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     station_pair_list[[i]] <- list("max_detected"=max_detected, "max_angles"=max_angles)
   }
 
-  
-  
   # station_pair_list_combine <- data.frame()
   station_pair_list_combine <- lapply(station_pair_list, function(x) {
     tbl <- as.data.frame(x$max_angles)
@@ -233,7 +231,6 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     station_pair_list_combine <- unique(station_pair_list_combine, by=c("station", "theta"))
   station_pair_list_combine$id <- unlist(lapply(1:(nrow(station_pair_list_combine)/n_antennas), function(x) rep(x, n_antennas)))
   #determine which stations are duplicate and use if same or use mean (rounded to nearest 15) for angles
-
 
   #generates optimal list of start angles from which we can get pattern
   stn_dups <- station_pair_list_combine %>% 
@@ -321,7 +318,6 @@ boot_mean_detection_CI <- function(flt_ht, antenna_pattern, simulated_birds, n_b
       #combine antenna pattern into single surface for determing how many lines intersect
       prop_detected <- sum(sf::st_intersects(bird_sample, st_union(antenna_pattern), sparse = F), na.rm = T)/n_birds
       if (x %% (R/10) == 0){
-        # browser()
         perc_complete <- round((x/R) * 100, 0)
         incProgress(amount = 0.1, detail = paste0(": Processing ", flt_ht, "m flight height; completed ", perc_complete, "% of ", R," replicates at: ", 
                            strftime(Sys.time()), ", elapsed time: ", round(as.numeric(difftime(Sys.time(), start_time, units = "min")), 1), " minutes"))
