@@ -61,7 +61,6 @@ antenna_detection_pattern_434_horizon_FSPL <- function(z, stn_height=25, transmi
   
   #per Erik Carlson on 8 Feb 2022: antenna is actually placed at (-7.5,0) so you need to shift your center point ever so slightly (see the red arrow to black dot). 
   x_shift <- max_range/2 
-  # browser()
   x_points <- function(xt) scaling_factor * (2.092 + 0.7284 * cos(2.004 * xt) + 0.4391 * cos(4.008 * xt)  - 0.4641 * sin(2.004 * xt) + 0.199352 * sin(4.008 * xt)) * cos(xt)
   y_points <- function(yt) scaling_factor * (2.092 + 0.7284 * cos(2.004 * yt) + 0.4391 * cos(4.008 * yt)  - 0.4641 * sin(2.004 * yt) + 0.199352 * sin(4.008 * yt)) * sin(yt)
   y_points_neg <- function(yt) -scaling_factor * (2.092 + 0.7284 * cos(2.004 * yt) + 0.4391 * cos(4.008 * yt)  - 0.4641 * sin(2.004 * yt) + 0.199352 * sin(4.008 * yt)) * sin(yt)

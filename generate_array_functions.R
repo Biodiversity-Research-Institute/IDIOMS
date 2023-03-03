@@ -30,7 +30,6 @@ manual_coverage <- function(selected_stns_sp, study_area_sf, min_ht, max_ht, int
         single_antenna_optim <- yagi_antenna_detect_pattern_166(z = flt_ht, ant_HT = stn_HT, xi_min_dbm = xi_min_dbm, lambda, D0, p0, maxit = 1000)
       } else { 
         #434 MHZ
-        # browser()
         # single_antenna_optim <- antenna_detection_pattern_434(z = flt_ht, r_2 = 1500, max_range = 15000)
         # single_antenna_optim <- antenna_detection_pattern_434_horizon(z = flt_ht, r_2 = 1500, stn_height = stn_HT)
         single_antenna_optim <- antenna_detection_pattern_434_horizon_FSPL(z = flt_ht, stn_height=stn_HT, transmitter_gain = 2, receiver_gain = D0)
@@ -55,7 +54,6 @@ manual_coverage <- function(selected_stns_sp, study_area_sf, min_ht, max_ht, int
       if (grepl("omni",ant_type, fixed = T)){
         #if omni don't generate multiple antenna arrangements
         #affine shift to location of antenna
-        # browser()
         single_antenna_optim_shifted <- single_antenna_optim + stn@coords[,1:2]
         stn_list[[ID]] <- st_as_sf(data.frame("station" = ID, "theta"=0, "geometry"=single_antenna_optim_shifted), crs=3857)
       } else {
@@ -113,8 +111,8 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
   if (tag_freq=="434 MHZ" & optim_type == "coverage"){
     #need to expand for 434 for initial estimation even at low altitudes, clumping
     #Also, don't buffer for avoidance optimization as it's already buffered.
-    
-    buff_dist <- 15000
+    # browser()
+    buff_dist <- 10000 #15000
     #expand ref buffer distance as needed to optimize
 
     ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
@@ -153,8 +151,7 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     stn_placement_maxcovr_dist_mat_grid_beams <- max_coverage_motustag(proposed_facility = all_stns_df,
                                                                        user = grid_df,
                                                                        n_added = n_stations,
-                                                                       distance_cutoff = max_r * 0.7) #, solver = "lpSolve")
-
+                                                                       distance_cutoff = max_r * 0.5) #0.7, solver = "lpSolve")
     stn_placement_maxcovr_grid_detect <- SpatialPointsDataFrame(coords=stn_placement_maxcovr_dist_mat_grid_beams$facility_selected[[1]][,c("long", "lat")], data = stn_placement_maxcovr_dist_mat_grid_beams$facility_selected[[1]], proj4string=WGS84)
 
     all_proposed_stns_grid_detect_WebMerc <- spTransform(stn_placement_maxcovr_grid_detect, CRSobj = WebMerc)
@@ -164,10 +161,11 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     #optimize angles at flight height
     # optimized_stn_angles_internal <- antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
     #                                                                single_antenna_optim = single_antenna_optim, detect_locs = all_stns_sf)
-    optimized_stn_angles_internal <- suppressWarnings(antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
-                                                                   single_antenna_optim = single_antenna_optim, detect_locs = grid_sf, debug.out=debug.out))
-
+    # optimized_stn_angles_internal <- suppressWarnings(antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
+    #                                                                single_antenna_optim = single_antenna_optim, detect_locs = grid_sf, debug.out=debug.out))
     
+    optimized_stn_angles_internal <- antenna_angle_optim_effecient(proposed_stn_points = all_proposed_stns_grid_detect_WebMerc, n_antennas = num_ant, ant_ang_inc = 15,
+                                                                                    single_antenna_optim = single_antenna_optim, detect_locs = grid_sf, debug.out=debug.out)
     #determine coverage of study area
     study_area_covered <- as.numeric(st_area(st_intersection(st_union(optimized_stn_angles_internal$geometry),study_area_sf))/st_area(study_area_sf))
     ref_area_sf_covered <- as.numeric(st_area(st_intersection(st_union(optimized_stn_angles_internal$geometry),ref_area_sf))/st_area(ref_area_sf))
@@ -212,7 +210,6 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     # selected_locs$study_area_covered=rep(study_area_covered, n_stations)
     selected_locs$angle_df <- list(optimized_stn_angles_internal)
     selected_locs$angles <- paste(unlist(optimized_stn_angles_internal[,c("station", "theta")]), collapse=",")
-    
     #", round(i/loop_length*100, 1), "% complete 
     prog_txt <- paste0("completed ", flt_ht, " m step ", i, " of ", loop_length, " flight heights, at: ", 
                  strftime(Sys.time(), tz=local_tz), ", elapsed time: ", round(as.numeric(difftime(Sys.time(), start_time, units = "min")), 1), " minutes")
@@ -221,9 +218,8 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     
     # i <<- i + 1
     i <- i + 1
-    
     selected_stns_at_multi_ht_df <- rbind(selected_stns_at_multi_ht_df, selected_locs)
-    
+
     #clean up memory
     rm(list=c("single_antenna_optim","all_proposed_stns_grid_detect_WebMerc","stn_placement_maxcovr_grid_detect",
             "stn_placement_maxcovr_dist_mat_grid_beams","optimized_stn_angles_internal","selected_locs"))

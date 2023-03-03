@@ -34,17 +34,13 @@
 # 0.65 - 29 Jun 2022: Fixed an error in study area creation by reducing distance for optimization, also fixed some Motus antenna
 #  estimation patterns. 
 #  30 Jun 2022: slight changes to code (reduced buffering) to reduce out of memory errors for avoidance optim.
-
-
-# source("helpers.R")
-# source("generate_array_functions.R")
-# source("radio_telemetry_functions.R")
-# source("maxcovr_extractors.R")
-# source("maxcovr_motustag.R")
-# source("nearest_motus.R")
-# source("MOTUS_scripts.R")
-# source("detection_pattern_166.R")
-# source("detection_pattern_434.R")
+# 0.66 - 04 Aug 2022: Bug fixes: all stations not always optimized and when loading 
+#   shapefiles for the study area simulation is not possible.
+# 0.66.1 - 08 Sep 2022: Motus data causing error with locations on the date line - polygons not closed. Fixed. 
+# 0.66.2 - Super Narwhal - 28 Sep 2022: Fixed long tables not breaking over pages in report
+# 0.67 - Orca - 04 Oct 2022: Updated report with map bug fix and added header/footer. Fixed issue with the simulation not running when 
+#    default study area (or any created study area) is used. 
+# 0.67.1 Crafty Orca - 16 Feb 23 - fixed some markdown bugs and problems with creating Motus antenna layer for display
 
 currentdir <- normalizePath(getwd(), winslash = "/")
 source(file.path(currentdir, "helpers.R"))
@@ -57,7 +53,12 @@ source(file.path(currentdir, "MOTUS_scripts.R"))
 source(file.path(currentdir, "detection_pattern_166.R"))
 source(file.path(currentdir, "detection_pattern_434.R"))
 
-IDIOMS_version = "0.65 - Marmoset"
+library(reactlog)
+
+# tell shiny to log all reactivity
+reactlog_enable()
+
+IDIOMS_version = "0.67.1 - Crafty Orca"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -860,8 +861,8 @@ server <- function(input, output, session) {
   # values$run_sucess <- F
   values$seabird_sim <- 0
   values$shorebird_sim <- 0
-  values$shorebird_lines <- NA
-  values$seabird_lines <- NA
+  values$shorebird_lines <- data.frame()
+  values$seabird_lines <- data.frame()
   
   #create hide panel output value to be able to hide the study design input when not needed
   output$hide_panel <- eventReactive(input$filemap, TRUE, ignoreInit = TRUE)
@@ -1132,19 +1133,26 @@ server <- function(input, output, session) {
                                        study_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
     values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
+    #get data.frame of cardinal points around study area to be able to simulate start from
+    study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
+    #when study area or input boundary changes generate the simulation point coords 
+    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary), 20)
   })
   
   observeEvent(input_boundary(), {
-    values$study_boundary <- input_boundary()
+    values$study_boundary <- isolate(input_boundary())
     #create grid to optimize against - try  500 m grid for
-    values$ref_grid <- create_grid(study = input_boundary(), resolution_m = 750)
+    values$ref_grid <- create_grid(study = values$study_boundary, resolution_m = 750)
     #Create the buffer around the input_boundary for avoidance optim
-    input_bound_buff_webmerc <- spTransform(isolate(input_boundary()), WebMerc)
+    input_bound_buff_webmerc <- spTransform(values$study_boundary, WebMerc)
     
     values$avoid_buffer <- gDifference(gBuffer(input_bound_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30),
                                        input_bound_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
     values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
+    study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
+    #when study area or input boundary changes generate the simulation point coords 
+    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary), 20)
   })
 
   observeEvent(input$default_array, {
@@ -1249,7 +1257,6 @@ server <- function(input, output, session) {
   })
   
   # observeEvent(input$generate, {
-  #   # browser()
   #   if (is.null(values$study_boundary)){
   #     showNotification(
   #       "Please add as study area!",
@@ -1285,8 +1292,6 @@ server <- function(input, output, session) {
   # }) #observeEvent
   
   # generate_error_modal <- function(){
-  #   browser()
-  # 
   #   if (is.null(study_area())) {
   #     showNotification(
   #       "Please add a study area before continuing.",
@@ -1346,9 +1351,6 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    
-    
-    # browser()
     # #data validation before proceeding
     # validate(
     #   #need study area data before proceeding
@@ -1418,7 +1420,6 @@ server <- function(input, output, session) {
       
       # Manual station selection estimation of coverage when user enters stations manually with manual antenna angles
       if (input$op_type == "manual") {
-        # browser()
         values$stations_selected$ant_angle_list <-
           isolate(lapply(values$stations_selected$first_ant_angle, function(first_angle)
             antenna_angle_seq(
@@ -1531,6 +1532,7 @@ server <- function(input, output, session) {
       out_df$min_covg_flag <- 0
       out_df[which(out_df$study_area_covered > startUpValues$thresholdsPars$min_coverage), "min_covg_flag"] <- 1
       # save(out_df, file="data/select_stns_by_hgt.RData")
+
       run_times$end <- Sys.time()
       # values$run_sucess <<- T
       Sys.sleep(3) #sleep to give progress modal chance to show final and then close
@@ -1561,7 +1563,7 @@ server <- function(input, output, session) {
                      lambda = input$numInput_stnPars_antLambda, 
                      D0 = input$numInput_stnPars_antD0, 
                      p0 = input$numInput_stnPars_antP0)
-    save(df, file="data/input_pars.RData")
+    # save(df, file="data/input_pars.RData")
     
     return(df)
     })
@@ -1577,8 +1579,6 @@ server <- function(input, output, session) {
     num_ant <- input$numInput_stnPars_antNum
     
     selected_stn_data <- rep(select_stns_by_hgt()$flt_ht, times = 1, each = num_stns * num_ant)
-    
-    # browser()
     
     #slightly different data storage depending on station selection method
     if (input$op_type == "manual") {
@@ -1604,7 +1604,6 @@ server <- function(input, output, session) {
       stn_angles <- rbindlist(select_stns_by_hgt()$angle_df) %>% 
         select(-c(station))
 
-      
       #save the output table for later downloading and display
       values$selected_stn_data_angles <- st_sf(cbind(selected_stns_rep, stn_angles), crs=3857)
     }
@@ -1894,14 +1893,6 @@ server <- function(input, output, session) {
         clearGroup(group = "Station locations")
       }
   })
-
-  sim_pt_coords <- eventReactive(study_area(), {
-    #get data.frame of cardinal points around study area to be able to simulate start from
-    study_boundary <- st_as_sf(study_area()) %>% st_transform(3857)
-
-    return(cardinal_start_coords(st_sf(study_boundary), 20))
-    
-  })
   
   values$boot_mean_detection_CI <- data.frame()
   
@@ -1915,7 +1906,7 @@ server <- function(input, output, session) {
     #Prep simulated tracks for rendering on maps by selecting subset and orienting in proper direction to study area
     #affine shift simulated tracks to center of study area
     # boundary_center <- st_as_sf(study_area()) %>% st_transform(3857) %>% st_centroid()
-    
+
     if (input$n_boot < 100){
       showNotification(
         "Please choose bootstrap sample of at least 100.",
@@ -1934,7 +1925,7 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    start_sim_loc <- sim_pt_coords()[which(sim_pt_coords()$dir==input$cardinal_dir_sim), ]
+    start_sim_loc <- values$sim_pt_coords[which(values$sim_pt_coords$dir==input$cardinal_dir_sim), ]
 
     #shift and transform (The Leaflet package expects all point, line, and shape data to be specified in 
     # latitude and longitude using WGS 84 (a.k.a. EPSG:4326). By default, when displaying this data it projects everything to EPSG:3857 and expects that any map tiles are also displayed in EPSG:3857.)
@@ -1943,8 +1934,7 @@ server <- function(input, output, session) {
     seabird_lines_shifted <- seabird_lines_geom + st_coordinates(start_sim_loc)
 
     seabird_lines_shifted <- st_sf(st_set_geometry(seabird_lines_sf, seabird_lines_shifted), crs = 3857)
-    # browser()
-    
+
     #calculate bootstrap mean detection rate for simulated bird tracks with antenna pattern
     #Loop through each flight height to generate detection at flight height
     for (hgt in unique(sort(values$selected_stn_data_angles$flt_ht))){
@@ -1964,7 +1954,7 @@ server <- function(input, output, session) {
         addPolylines(data = seabird_lines_rand_shifted$geometry,
                      color = "purple",
                      group = "Simulated seabirds")
-  })
+  }, ignoreInit = TRUE)
 
   
   # study map updates
@@ -1972,6 +1962,7 @@ server <- function(input, output, session) {
     #Prep simulated tracks for rendering on maps by selecting subset and orienting in proper direction to study area
     #affine shift simulated tracks to center of study area
     # boundary_center <- st_as_sf(study_area()) %>% st_transform(3857) %>% st_centroid()
+
     if (input$n_boot < 100){
       showNotification(
         "Please choose bootstrap sample of at least 100.",
@@ -1990,7 +1981,7 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    start_sim_loc <- sim_pt_coords()[which(sim_pt_coords()$dir==input$cardinal_dir_sim), ]
+    start_sim_loc <- values$sim_pt_coords[which(values$sim_pt_coords$dir==input$cardinal_dir_sim), ]
     
     #shift and transform (The Leaflet package expects all point, line, and shape data to be specified in 
     # latitude and longitude using WGS 84 (a.k.a. EPSG:4326). By default, when displaying this data it projects everything to EPSG:3857 and expects that any map tiles are also displayed in EPSG:3857.)
@@ -2022,7 +2013,7 @@ server <- function(input, output, session) {
                    color = "yellow",
                    group = "Simulated shorebirds"
       )
-  })
+  }, ignoreInit = TRUE)
   
   output$sim_results <- 
     DT::renderDataTable(values$boot_mean_detection_CI,
@@ -2063,7 +2054,6 @@ server <- function(input, output, session) {
   #use Handson table type which supports numeric validation on the fly so can check
   #also data editing and entry
   output$stations_selected <- renderRHandsontable({
-    # browser()
     req(!is.null(values$stations_selected))
     rhandsontable(
       values$stations_selected[, c("ID", "lat", "long", "first_ant_angle")], #, "ant_angle_list")],
@@ -2145,7 +2135,13 @@ server <- function(input, output, session) {
       #https://github.com/r-spatial/sf/issues/1762
       # Resolved by adding sf_use_sd
       sf_use_s2(FALSE)
-      poly_center_sf <- poly_data %>% group_by(station) %>% summarize(st_union(geometry)) %>% st_centroid
+
+      #calculate for display the centroids of the turbines
+      poly_center_sf <- poly_data %>% 
+        dplyr::group_by(station) %>% 
+        dplyr::summarize(geometry = st_union(geometry)) %>%
+        st_sf() %>% 
+        st_centroid()
       
       if (input$selInput_optimPars_antcolors=="psychedelic"){
         pal = colorFactor(colorRamp(c('yellow','red','green', 'magenta','purple', 'cyan')), poly_data$theta) #station for whole stn color
@@ -2217,7 +2213,6 @@ server <- function(input, output, session) {
             values$stations_selected[which(values$stations_selected$ID %in% setdiff(previously_selected_IDs, clickID)), ]
         } else {
           #add to selected data
-          # browser()
           #TODO - need to keep any changed antenna angles when adding a new location!
           values$stations_selected <- rbind(values$stations_selected, values$all_stns_df[which(values$all_stns_df$ID == clickID), ])
           # values$stations_selected <-
@@ -2235,10 +2230,8 @@ server <- function(input, output, session) {
         # )
         # #
         # selected_map_stns <- values$all_stns_df[values$all_stns_df$ID %in% values$clickIDs, ]
-        # browser()
         # selected_map_stns <- setdiff(values$clickIDs, values$stations_selected$ID)
         
-        # browser()
         # leafletProxy('studymap')%>%
         #   clearGroup(c("selected_map_stns")) %>%
         #   addMarkers(data=selected_map_stns, lng=~long, lat=~lat,
@@ -2256,7 +2249,6 @@ server <- function(input, output, session) {
     downloadHandler(
       filename = paste0('IDIOMS_output_', strftime(Sys.time(), "%Y%m%d_%H%M%S"),'.zip'),
       content = function(fname) {
-        # browser()
         IDIOMS_selected_stn_data_angles <- isolate(values$selected_stn_data_angles)
         #remove geometry and store to store as csv data
         IDIOMS_selected_stn_data_angles_df <- IDIOMS_selected_stn_data_angles %>% data.frame() %>% select(-c(geometry))
@@ -2311,8 +2303,8 @@ server <- function(input, output, session) {
       # can happen when deployed).
       input_data <- input_pars()
       study_boundary <-  st_as_sf(values$study_boundary, crs=4326)
-      simulated_tracks <- NA
-      if(values$seabird_sim + values$shorebird_sim >0){
+      simulated_tracks <- data.frame()
+      if(values$seabird_sim + values$shorebird_sim > 0){
         simulated_tracks <- values$boot_mean_detection_CI
       }
       
@@ -2334,8 +2326,9 @@ server <- function(input, output, session) {
       params <- list(IDIOMS_version = IDIOMS_version, project = input$project_name, modeler = input$modeler, run_start_time = run_times$start, 
                      run_end_time = run_times$end, input_pars = input_data, study_boundary = study_boundary, study_covg = values$select_stns_covg_by_hgt,
                      output_df = values$selected_stn_data_angles, option = input$op_type, simulated_tracks = simulated_tracks, 
-                     seabird_sims = values$seabird_lines, shorebird_sims = values$shorebird_lines)
-      save(params, file = "data/params.Rdata")
+                     seabird_sims = values$seabird_lines, shorebird_sims = values$shorebird_lines, 
+                     MOTUS_receivers_active = MOTUS_receiver_antennas_active_sf_merc)
+      # save(params, file = "data/params.Rdata")
       
       # Knit the document, passing in the `params` list, and eval it in a
       # child of the global environment (this isolates the code in the document

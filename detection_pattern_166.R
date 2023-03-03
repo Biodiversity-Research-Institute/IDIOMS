@@ -246,7 +246,6 @@ yagi_antenna_detect_pattern_166 <- function(z, ant_HT, xi_min_dbm, lambda, D0, p
 #   path[[j+1]] <-  path[[1]]
 #   #create a polygon from the paths in R
 #   path_pts <- data.table::rbindlist(path)
-#   # browser()
 #   poly_sf <-  st_sfc(st_polygon(list(as.matrix(path_pts))), crs = 3857)
 #   # poly_sf <-  st_sfc(st_polygon(list(as.matrix(path_pts))), crs = 4326) %>% sf::st_transform(crs = 3857)
 #   return(poly_sf)

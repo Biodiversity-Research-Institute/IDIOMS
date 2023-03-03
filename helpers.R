@@ -126,7 +126,7 @@ shut_up = function(expr) {
   #get rid of file
   close(f)
   
-  y
+  # y
 }
 
 # generate continuous Spectral pallete
@@ -182,7 +182,6 @@ create_grid <- function(study, resolution_m){
   require(rgeos)
   require(sp)
   require(SpatialPosition)
-  # browser()
 
   study_area_WebMerc <- spTransform(study, CRSobj = WebMerc)
   grid_array <- SpatialPosition::CreateGrid(w = study_area_WebMerc, resolution = resolution_m, returnclass = "sf")  #creates a regularly spaced grid

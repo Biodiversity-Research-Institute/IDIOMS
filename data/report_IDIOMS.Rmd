@@ -16,6 +16,7 @@ params:
   simulated_tracks: NA
   seabird_sims: NA
   shorebird_sims: NA
+  MOTUS_receivers_active: NA
 header-includes:
   - \usepackage{booktabs}
   - \usepackage{longtable}
@@ -28,6 +29,12 @@ header-includes:
   - \usepackage{tabu}
   - \usepackage{threeparttable}
   - \usepackage[normalem]{ulem}
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyfoot[LO,LE]{`r params$project`, `r params$modeler`}
+  - \fancyhead[RO,RE]{IDIOMS v. `r params$IDIOMS_version`}
+  - \fancyfoot[CO,CE]{`r params$run_end_time`}
+  - \fancyfoot[LE,RO]{\thepage}
 ---
 <!-- header-includes required because won't re-run after first report download -->
 <!-- Fix: https://stackoverflow.com/questions/46080853/why-does-rendering-a-pdf-from-rmarkdown-require-closing-rstudio-between-renders/46083308#46083308 -->
@@ -37,6 +44,8 @@ library(knitr)
 library(kableExtra)
 library(dplyr)
 library(ggplot2)
+library(sf)
+library(basemaps)
 options(tinytex.verbose = TRUE)
 # load(file = "P:/NYSERDA Nanotag tools/IDIOMS_shiny/data/params.RData")
 ```
@@ -93,8 +102,9 @@ cat(paste0("IDIOMS - Informing the Design and Implementation of Offshore Motus S
 #if you find HOLD_position is not powerful enough to literally PIN your table in the exact position, you may want to 
 # use HOLD_position, which is a more powerful version of this feature
 # percent symbol causing issues in caption
+
 input_tbl <- params$input_pars %>% 
-  rename("Min. height (m)"="min_ht", 
+  dplyr::rename("Min. height (m)"="min_ht", 
          "Max. height (m)"="max_ht", 
          "Flight height interval (m)"="interval_m",
          "Station height (m)"="stn_HT",
@@ -134,8 +144,8 @@ kbl(input_tbl, booktabs=T, caption = "Input parameters used in IDIOMS run.") %>%
 
 selected_stns <- params$output_df %>% 
       data.frame() %>% 
-      select(-c(geometry)) %>% 
-      rename("Flight Height"="flt_ht", "Station ID"="station_ID", "Long."="long", "Lat."="lat","Computed antenna angle"="theta")
+      dplyr::select(-c(geometry)) %>% 
+      dplyr::rename("Flight Height"="flt_ht", "Station ID"="station_ID", "Long."="long", "Lat."="lat","Computed antenna angle"="theta")
 
 kbl(selected_stns, booktabs=T, longtable = TRUE, caption = "Stations and selected antenna angles from IDIOMS run.") %>%
   kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped", "repeat_header")) %>%
@@ -154,10 +164,10 @@ kbl(selected_stns, booktabs=T, longtable = TRUE, caption = "Stations and selecte
 ```{r, table3, echo=FALSE, message=FALSE, warning=FALSE}
 
 study_covg <- params$study_covg %>% 
-  mutate(max_r=round(max_r, 0), 
+  dplyr::mutate(max_r=round(max_r, 0), 
          antenna_coverage_overlap=round(antenna_coverage_overlap, 2), 
          antenna_coverage_overlap=round(antenna_coverage_overlap, 2)) %>% 
-      rename("Flight height (m)"="flt_ht", "Max detection distance (m)"="max_r", "Prop. of study area covered"="study_area_covered", "Prop. of adjacent antenna overlap"="antenna_coverage_overlap")
+  dplyr::rename("Flight height (m)"="flt_ht", "Max detection distance (m)"="max_r", "Prop. of study area covered"="study_area_covered", "Prop. of adjacent antenna overlap"="antenna_coverage_overlap")
       
 kbl(study_covg, booktabs=T, caption = "Antenna coverage by flight height from IDIOMS run.") %>% 
   kable_styling(position="center", full_width=F, latex_options = c("HOLD_position", "striped")) %>% 
@@ -172,9 +182,9 @@ kbl(study_covg, booktabs=T, caption = "Antenna coverage by flight height from ID
 
 ```{r, table4, echo=FALSE, message=FALSE, warning=FALSE}
 
-if (!is.na(params$simulated_tracks)){
+if (nrow(params$simulated_tracks)>0){
   simulated_tracks <- params$simulated_tracks %>% 
-    rename("Species group"="taxa",
+    dplyr::rename("Species group"="taxa",
            "Flight height (m)"="flt_ht",
            "Mean prop. detected"="mean_prop", 
            "Lower 95% CI prop. detected"="CI_lower",
@@ -254,8 +264,9 @@ antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>
 
 map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
 #reduce the number of antenna to plot
-MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
-                                                                                                    st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+MOTUS_receiver_antennas_active_sf_merc_near <- params$MOTUS_receivers_active[st_intersects(params$MOTUS_receivers_active,
+                                                                                                    st_union(params$output_df) %>% 
+                                                                                             st_buffer(40000), sparse = F) , ]
 MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
 study_boundary_merc <- st_transform(params$study_boundary, 3857)  
 
@@ -271,10 +282,15 @@ for (flt_ht in sort(unique(params$output_df$flt_ht))){
   # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
   
   sf_use_s2(FALSE)
-  ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
+  ant_at_ht_center_sf <- ant_at_ht_merc %>% 
+    dplyr::group_by(station_ID) %>% 
+    dplyr::summarize(geometry=st_union(geometry)) %>% 
+    st_sf %>% 
+    st_centroid()
       
   shut_up(
-    print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+    # print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+    print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg) +
                   geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                   geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                   geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
@@ -310,15 +326,16 @@ for (flt_ht in sort(unique(params$output_df$flt_ht))){
 
 ```{r, fig3, fig.height = 7, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "Map of antenna patterns by flight height and simulated seabird tracks as estimated by IDIOMS.", fig.pos="t"}
 
-if (!is.na(params$seabird_sims)){
+if (nrow(params$seabird_sims)>0){
   #buffer bounding box by x km to get view of area with antenna array
   antenna_bbox_buff_merc_lg <- st_union(params$output_df) %>% st_buffer(60000) %>% st_bbox() 
   antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>% st_bbox() 
   
   map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
   #reduce the number of antenna to plot
-  MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
-                                                                                                      st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+  MOTUS_receiver_antennas_active_sf_merc_near <- params$MOTUS_receivers_active[st_intersects(params$MOTUS_receivers_active,
+                                                                                                      st_union(params$output_df) %>% 
+                                                                                                        st_buffer(40000), sparse = F) , ]
   MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
   study_boundary_merc <- st_transform(params$study_boundary, 3857)  
   
@@ -329,9 +346,14 @@ if (!is.na(params$seabird_sims)){
     ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
     # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
     sf_use_s2(FALSE)
-    ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
+    ant_at_ht_center_sf <- ant_at_ht_merc %>% 
+      dplyr::group_by(station_ID) %>% 
+      dplyr::summarize(geometry = st_union(geometry)) %>% 
+      st_sf() %>% 
+      st_centroid()
   
-    shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+    # shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+      shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg) +
                     geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                     geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                     geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +
@@ -376,15 +398,16 @@ if (!is.na(params$seabird_sims)){
 
 ```{r, fig4, fig.height = 7, echo=FALSE, warning=FALSE, message = FALSE, fig.cap = "Map of antenna patterns by flight height and simulated shorebird tracks as estimated by IDIOMS.", fig.pos="t"}
 
-if (!is.na(params$shorebird_sims)){
+if (nrow(params$shorebird_sims)>0){
   #buffer bounding box by x km to get view of area with antenna array
   antenna_bbox_buff_merc_lg <- st_union(params$output_df) %>% st_buffer(60000) %>% st_bbox() 
   antenna_bbox_buff_merc_med <- st_union(params$output_df) %>% st_buffer(40000) %>% st_bbox() 
   
   map_center_coords <- st_centroid(st_union(params$output_df)) %>% st_transform(4326) %>% st_coordinates()
   #reduce the number of antenna to plot
-  MOTUS_receiver_antennas_active_sf_merc_near <- MOTUS_receiver_antennas_active_sf_merc[st_intersects(MOTUS_receiver_antennas_active_sf_merc,
-                                                                                                      st_union(params$output_df) %>% st_buffer(40000), sparse = F) , ]
+  MOTUS_receiver_antennas_active_sf_merc_near <- params$MOTUS_receivers_active[st_intersects(params$MOTUS_receivers_active,
+                                                                                                      st_union(params$output_df) %>% 
+                                                                                               st_buffer(40000), sparse = F) , ]
   MOTUS_receiver_antennas_active_sf_merc_near$Motus=1
   study_boundary_merc <- st_transform(params$study_boundary, 3857)  
   
@@ -395,9 +418,14 @@ if (!is.na(params$shorebird_sims)){
     ant_at_ht_merc <- st_transform(ant_at_ht, 3857)
     # ant_at_ht_grid_merc <- st_transform(ant_at_ht_grid, 3857)
     sf_use_s2(FALSE)
-    ant_at_ht_center_sf <- ant_at_ht_merc %>% group_by(station_ID) %>% summarize(st_union(geometry)) %>% st_centroid
+    ant_at_ht_center_sf <- ant_at_ht_merc %>% 
+      dplyr::group_by(station_ID) %>% 
+      dplyr::summarize(gemoetry = st_union(geometry)) %>% 
+      st_sf() %>% 
+      st_centroid()
     
-    shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+    # shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg, map_service = "esri", map_type = "world_ocean_base") +
+    shut_up(print(basemaps::basemap_ggplot(ext = antenna_bbox_buff_merc_lg) +
                     geom_sf(data = BOEM_lease_outlines, aes(col="gray40"), fill=NA) +
                     geom_sf(data = BOEM_planning_area_outlines, aes(col="gray80"), fill=NA) +
                     geom_sf(data=MOTUS_receiver_antennas_active_sf_merc_near, aes(col="darkorange1"), fill=NA) +

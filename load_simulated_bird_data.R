@@ -46,7 +46,7 @@ WGS84 <-  CRS("+init=epsg:4326")
 WebMerc <- CRS("+init=epsg:3857")
 
 #load modeleded movement data for shorebirds and convert to spatial lines
-load("P:/NYSERDA Nanotag tools/Bird movement simulation/shorebird_tracks.Rdata")
+# load("P:/NYSERDA Nanotag tools/Bird movement simulation/shorebird_tracks.Rdata")
 
 shorebird_points_sp <- SpatialPointsDataFrame(coords = cbind(shorebird.tracks$x, shorebird.tracks$y), data = shorebird.tracks, proj4string = WebMerc)
 shorebird_points_sf <- st_as_sf(shorebird_points_sp)
@@ -61,7 +61,7 @@ save(shorebird_lines_sf, file = "data/shorebird_lines_sf.Rdata")
 
 #load modeleded movement data for seabirds and convert to spatial lines
 
-load("P:/NYSERDA Nanotag tools/Bird movement simulation/seabird_tracks.Rdata")
+# load("P:/NYSERDA Nanotag tools/Bird movement simulation/seabird_tracks.Rdata")
 seabird_points_sp <- SpatialPointsDataFrame(coords = cbind(simDat$x, simDat$y), data = as.data.frame(simDat)[,c("x", "y", "ID")], proj4string = WebMerc)
 seabird_points_sf <- st_as_sf(seabird_points_sp)
 save(seabird_points_sf, file = "data/seabird_points_sf.Rdata")
