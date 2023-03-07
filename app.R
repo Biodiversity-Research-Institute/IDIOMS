@@ -41,6 +41,8 @@
 # 0.67 - Orca - 04 Oct 2022: Updated report with map bug fix and added header/footer. Fixed issue with the simulation not running when 
 #    default study area (or any created study area) is used. 
 # 0.67.1 Crafty Orca - 16 Feb 23 - fixed some markdown bugs and problems with creating Motus antenna layer for display
+# 0.68 Elegant Porpoise - 16 Feb 23 - Added the ability to max. coverage with known fixed antenna angles. 
+# 0.68.1 - 06 Mar 23 - change to carry flight heights data through to outputs. 
 
 currentdir <- normalizePath(getwd(), winslash = "/")
 source(file.path(currentdir, "helpers.R"))
@@ -58,7 +60,7 @@ library(reactlog)
 # tell shiny to log all reactivity
 reactlog_enable()
 
-IDIOMS_version = "0.67.1 - Crafty Orca"
+IDIOMS_version = "0.68.1 Elegant Porpoise"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -516,6 +518,7 @@ ui <- dashboardPage(
           c(
             "None (manual selection)" = "manual",
             "Coverage optimized" = "covg_optim",
+            "Coverage optimized, fixed angle" = "covg_optim_fixed_angle",
             "Avoidance optimized" = "avoid_optim"#,
             # "Density optimized" = "density_optim"
           )
@@ -540,6 +543,29 @@ ui <- dashboardPage(
               trigger = "hover")
           )
         ), #conditionalPanel
+      
+      conditionalPanel(
+        condition = "input.op_type == 'covg_optim_fixed_angle'",
+        menuItem(
+          # ---- avoidance distance
+          startExpanded = T,
+          numericInput(
+            width = "85%",
+            inputId = "numInput_fixed_ant_angle",
+            label =  "Fixed starting antenna angle",
+            value = 0,
+            min = 0, 
+            max = 360,
+            step = 1),
+          bsTooltip(
+            id = "numInput_fixed_ant_angle",
+            title = "The angle of one of the antennas of the fixed array.",
+            options = list(container = "body"),
+            placement = "right",
+            trigger = "hover")
+        )
+      ), #conditionalPanel
+      
         # ),#conditionalPanel
         # menuItem(
         #   text = "Detection polygon color",
@@ -903,6 +929,23 @@ server <- function(input, output, session) {
             3) Modify receiving station parameters and detection parameters especially setting the number of antennas arrayed at a station
             as well as the number of stations to optimize on (min. 2). <br> 
             4) Click "Generate Array" Button.'
+        )
+      #clear selected station data if any
+      values$stations_selected <- values$stations_selected[c(),]
+      dataTableProxy("stations") %>%
+        selectRows(NULL)
+      
+    }
+    
+    if (input$op_type == "covg_optim_fixed_angle") {
+      output$study_area_instructions <-
+        renderText(
+          '1) Add project details and the name of the person running IDIOMS. <br>
+            2) Upload a study area outline or create a wind farm using parameters in the "Create a wind farm" parameters sidebar option. <br> 
+            3) Modify receiving station parameters and detection parameters especially setting the number of antennas arrayed at a station
+            as well as the number of stations to optimize on (min. 2). <br> 
+            4) Set the fixed antenna angle for one of the antennas of the array. <br>
+            5) Click "Generate Array" Button.'
         )
       #clear selected station data if any
       values$stations_selected <- values$stations_selected[c(),]
@@ -1371,7 +1414,7 @@ server <- function(input, output, session) {
     }
     
     if (input$numInput_stnPars_NumStns < 2 &
-        (input$op_type == "covg_optim" | input$op_type == "avoid_optim")) {
+        (input$op_type == "covg_optim" | input$op_type == "covg_optim_fixed_angle" | input$op_type == "avoid_optim")) {
       showNotification(
         "Please enter a value of at least 2 for 'Number of antenna stations' to run the optimization routine.",
         duration = 10,
@@ -1486,6 +1529,36 @@ server <- function(input, output, session) {
           )
       }
       
+      # Enter the number of antennas desired and the function will determine the coverage optimized location and angles of these
+      # depending on whether 166 or 434 MHZ
+      if (input$op_type == "covg_optim_fixed_angle") {
+        out_df <-
+          optimize_study_area_covg_fixed_angles(
+            study_area_sf = study_area_sf,
+            min_ht = input$numInput_optimPars_MinFltHt,
+            max_ht = input$numInput_optimPars_MaxFltHt,
+            interval_m = input$numInput_optimPars_FltHtInc,
+            stn_HT = input$numInput_stnPars_antHt,
+            xi_min_dbm = input$numInput_stnPars_min_receiver_sensitivity,
+            all_stns_df = values$all_stns_df,
+            grid_df = ref_grid_df,
+            grid_sf = values$ref_grid,
+            tag_freq = input$selInput_stnPars_freq,
+            ant_type = input$selInput_stnPars_anttype,
+            ant_starting_angle = input$numInput_fixed_ant_angle,
+            n_stations = input$numInput_stnPars_NumStns,
+            num_ant = input$numInput_stnPars_antNum,
+            lambda = input$numInput_stnPars_antLambda, 
+            D0 = input$numInput_stnPars_antD0, 
+            p0 = input$numInput_stnPars_antP0,
+            # updateProgress = updateProgress,
+            local_tz = values$local_tz,
+            # max_rbuff_prop = input$numInput_optimPars_percmaxr,
+            max_rbuff_prop = 0.75,
+            optim_type="coverage"
+          )
+      }
+      
       # Enter the number of antennas desired and the function will determine the avoidance optimized location and angles of these
       # depending on whether 166 or 434 MHZ
       # Ref grid should be located in buffer wherease the station grid will be in the wind farm area still
@@ -1537,10 +1610,11 @@ server <- function(input, output, session) {
       # values$run_sucess <<- T
       Sys.sleep(3) #sleep to give progress modal chance to show final and then close
       
-      return(out_df)
+      
       # }
       # else return(NULL)
     }) #withProgress
+    return(out_df)
     # } else {
     #   #if (generate_error_modal() flag
     #   return(null)
@@ -1569,9 +1643,9 @@ server <- function(input, output, session) {
     })
 
   
-  
   # Create dataframe for output of selected stations and angles from optimizers as well as inputs for storing
   observeEvent(select_stns_by_hgt() ,{
+
     num_stns <- input$numInput_stnPars_NumStns
     num_flt_hts <- 
       length(seq(input$numInput_optimPars_MinFltHt, input$numInput_optimPars_MaxFltHt,
@@ -1581,15 +1655,14 @@ server <- function(input, output, session) {
     selected_stn_data <- rep(select_stns_by_hgt()$flt_ht, times = 1, each = num_stns * num_ant)
     
     #slightly different data storage depending on station selection method
-    if (input$op_type == "manual") {
+    if (input$op_type == "manual" | input$op_type == "covg_optim_fixed_angle") {
       selected_stns_rep <- rbindlist(isolate(select_stns_by_hgt()$angle_df))
       selected_stns_rep <- selected_stns_rep %>% 
         dplyr::rename(station_ID = station)
       stns_loc <- isolate(values$stations_selected)
       stns_loc$ID <- as.character(stns_loc$ID)
-      selected_stns_rep <- full_join(selected_stns_rep, stns_loc[,c("ID", "lat", "long")], by=c("station_ID"="ID"))
-      selected_stns_rep <- cbind(flt_ht = selected_stn_data, selected_stns_rep)
-      
+      selected_stns_rep <- left_join(selected_stns_rep, stns_loc[,c("ID", "lat", "long")], by=c("station_ID"="ID"), copy = T)
+
       #save the output table for later downloading and display
       values$selected_stn_data_angles <- st_sf(selected_stns_rep, crs=3857)
       
@@ -1840,7 +1913,9 @@ server <- function(input, output, session) {
           data = values$stn_grid,
           icon = turbine_icon,
           group = "Station locations",
-          layerId = values$stn_grid$ID
+          layerId = values$stn_grid$ID,
+          label = values$stn_grid$ID, 
+          labelOptions = (c(noHide = T))
         )
     }
   })
@@ -1885,7 +1960,9 @@ server <- function(input, output, session) {
           data = values$stn_grid,
           icon = turbine_icon,
           group = "Station locations",
-          layerId = values$stn_grid$ID
+          layerId = values$stn_grid$ID,
+          label = values$stn_grid$ID, 
+          labelOptions = (c(noHide = T))
         )
     } else{
       detection_map_add <- leafletProxy("detectionmap") %>% 
@@ -2325,7 +2402,7 @@ server <- function(input, output, session) {
       # set up parameters to pass to Rmd document
       params <- list(IDIOMS_version = IDIOMS_version, project = input$project_name, modeler = input$modeler, run_start_time = run_times$start, 
                      run_end_time = run_times$end, input_pars = input_data, study_boundary = study_boundary, study_covg = values$select_stns_covg_by_hgt,
-                     output_df = values$selected_stn_data_angles, option = input$op_type, simulated_tracks = simulated_tracks, 
+                     output_df = isolate(values$selected_stn_data_angles), option = input$op_type, simulated_tracks = simulated_tracks, 
                      seabird_sims = values$seabird_lines, shorebird_sims = values$shorebird_lines, 
                      MOTUS_receivers_active = MOTUS_receiver_antennas_active_sf_merc)
       # save(params, file = "data/params.Rdata")

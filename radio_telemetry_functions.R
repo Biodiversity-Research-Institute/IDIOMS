@@ -65,18 +65,15 @@ detection_limit_distance <- function(z_in, ant_HT, min_xi_dbm, x_max_end = 10000
 
 rotation = function(a){
   r = a * pi / 180 #degrees to radians
-  # matrix(c(cos(r), sin(r), -sin(r), cos(r)), nrow = 2, ncol = 2)
+  matrix(c(cos(r), sin(r), -sin(r), cos(r)), nrow = 2, ncol = 2)
   #rotation about axis believe require inverse
-  matrix(c(cos(r), -sin(r), sin(r), cos(r)), nrow = 2, ncol = 2)  
+  # matrix(c(cos(r), -sin(r), sin(r), cos(r)), nrow = 2, ncol = 2)  
   
 } 
 
 multi_antenna_pattern <- function(ant_stations, stn_id, ant_angle_st=60, antenna_num, ant_X=0, ant_Y=0, ant_HT, z, min_xi,interval=100, 
                                   single_antenna_detect_poly=NULL, crs_locs = 3857, crs_out=NULL, noisy = F){
   #generate multi-antenna detection pattern for mapping based on single antenna estimate, rotated and shifted from x,y=0,0 and theta=0
-
-  # WebMerc <- CRS("+init=epsg:3857")
-  
   # #if single antenna detection poly not passed to function, create the poly pattern
   # if(is.null(single_antenna_detect_poly)){
   #   # min_max_lims <- detection_limit_distance(z_in=z, ant_HT=ant_HT, min_xi_dbm=min_xi, x_max_end = 75000, x_min_end = -15000, inc = 10000, seq_inc = 50)
@@ -85,7 +82,13 @@ multi_antenna_pattern <- function(ant_stations, stn_id, ant_angle_st=60, antenna
   #   single_antenna_detect_poly <- antenna_detect_patterns(x_min=-1*xmax, x_max=xmax, y_min=-1*xmax, y_max=1*xmax, z=z, interval=100, 
   #                                                         ant_X=ant_X, ant_Y=ant_Y, ant_HT=ant_HT, ant_theta=0, min_xi = min_xi, crs_locs = 3857, noisy = noisy)}
   #generate angles from start angle
-  antenna_angles <- seq(ant_angle_st, 360, 360/antenna_num)
+  # antenna_angles <- seq(ant_angle_st, 360, 360/antenna_num)
+  #use function that doesn't depend on angle being first in series of 0-360
+  antenna_angles <- antenna_angle_seq(
+    input_angle = ant_angle_st,
+    num_antennas = antenna_num
+  )
+  
   # ant_stations <- spTransform(ant_stations, CRSobj = WebMerc)
   antenna_array_detect_polys <- data.frame()
   for (i in seq(1,length(ant_stations),1)) {
@@ -100,11 +103,12 @@ multi_antenna_pattern <- function(ant_stations, stn_id, ant_angle_st=60, antenna
     for (j in (1:antenna_num)) {
       theta <- antenna_angles[j]
       #rotate about theta
-      single_antenna_rotated <- single_antenna_detect_poly * rotation(theta)
+      #antenna is already rotated to 90, so need to subtract that value to get the correct angle
+      single_antenna_rotated <- single_antenna_detect_poly * rotation(theta - 90)
       
       #affine shift to location of antenna
       single_antenna_rotated <- single_antenna_rotated + antenna@coords[,1:2]
-      antenna_array_detect_polys <- rbind(antenna_array_detect_polys, cbind("station" = stn_id, "theta"=theta, "geometry"=single_antenna_rotated))
+      antenna_array_detect_polys <- rbind(antenna_array_detect_polys, cbind("flt_ht" = z, "station" = stn_id, "theta"=theta, "geometry"=single_antenna_rotated))
       
       # antenna_array_detect_polys <- rbind(antenna_array_detect_polys, cbind("station" = stn_id, "lat" = lat, "long" = long, "theta"=theta, "geometry"=single_antenna_rotated))
     }
@@ -122,7 +126,7 @@ multi_antenna_pattern <- function(ant_stations, stn_id, ant_angle_st=60, antenna
   
 }
 
-antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_ang_inc, single_antenna_optim, detect_locs, debug.out){
+antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_ang_inc, single_antenna_optim, z, detect_locs, debug.out){
   require(sf)
   require(data.table)
   require(nngeo)
@@ -196,7 +200,7 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
         if (j==1) {station_set[[paste0("stn_", j)]]$station <- stn1_val}
         else {station_set[[paste0("stn_", j)]]$station <- stn2_val}
         station_set[[paste0("stn_", j)]] <- multi_antenna_pattern(ant_stations = stn, stn_id = station_set[[paste0("stn_", j)]]$station,ant_angle_st = ant_angle_j, 
-                                                                  antenna_num = n_antennas, single_antenna_detect_poly = single_antenna_optim)
+                                                                  antenna_num = n_antennas, z = z, single_antenna_detect_poly = single_antenna_optim)
 
       }
 
@@ -216,7 +220,7 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     # return(build_stations)
     station_pair_list[[i]] <- list("max_detected"=max_detected, "max_angles"=max_angles)
   }
-
+  
   # station_pair_list_combine <- data.frame()
   station_pair_list_combine <- lapply(station_pair_list, function(x) {
     tbl <- as.data.frame(x$max_angles)
@@ -224,11 +228,14 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
   })
   
   station_pair_list_combine <- data.table::rbindlist(station_pair_list_combine)
+  # station_pair_list_combine$flt_ht <- unlist(station_pair_list_combine$flt_ht)
   station_pair_list_combine$station <- unlist(station_pair_list_combine$station)
   station_pair_list_combine$theta <- unlist(station_pair_list_combine$theta)
   
   #remove full dups first
-    station_pair_list_combine <- unique(station_pair_list_combine, by=c("station", "theta"))
+  # station_pair_list_combine <- unique(station_pair_list_combine, by=c("flt_ht","station", "theta"))
+  station_pair_list_combine <- unique(station_pair_list_combine, by=c("station", "theta"))
+    
   station_pair_list_combine$id <- unlist(lapply(1:(nrow(station_pair_list_combine)/n_antennas), function(x) rep(x, n_antennas)))
   #determine which stations are duplicate and use if same or use mean (rounded to nearest 15) for angles
 
@@ -254,12 +261,11 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
       ant_angle_j <- angle_opts[,j] 
       stn <- proposed_stn_points[j, ]
       station_set[[paste0("stn_", j)]] <- multi_antenna_pattern(ant_stations = stn, stn_id = station_set[[paste0("stn_", j)]]$station, ant_angle_st = ant_angle_j, 
-                                                                antenna_num = n_antennas, single_antenna_detect_poly = single_antenna_optim)
+                                                                antenna_num = n_antennas, z = z, single_antenna_detect_poly = single_antenna_optim)
       station_set[[paste0("stn_", j)]]$station <- j
     }
     
     # points_to_detect
-    
     station_set <- data.table::rbindlist(station_set)
 
     #combine polys to for intersection of one surface, otherwise given more points than possible because intersection by each poly
@@ -272,10 +278,11 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     }
   }
 
-  
   #added below to create regular df from lists
   ant_optimized_stn_polys_sf$station <- unlist(ant_optimized_stn_polys_sf$station)
   ant_optimized_stn_polys_sf$theta <- unlist(ant_optimized_stn_polys_sf$theta)
+  ant_optimized_stn_polys_sf$flt_ht <- unlist(ant_optimized_stn_polys_sf$flt_ht)
+ 
   # ant_optimized_stn_polys_sf <- sf::st_sf(ant_optimized_stn_polys_sf)
   
   #clean up

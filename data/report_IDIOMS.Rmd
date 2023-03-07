@@ -47,7 +47,6 @@ library(ggplot2)
 library(sf)
 library(basemaps)
 options(tinytex.verbose = TRUE)
-# load(file = "P:/NYSERDA Nanotag tools/IDIOMS_shiny/data/params.RData")
 ```
 
 \begin{center}
@@ -80,8 +79,6 @@ IDIOMS was developed by Biodiversity Research Institute and the U.S. Fish and Wi
 
 ```{r, echo=FALSE, warning=FALSE, message = FALSE}
   
-option_names <- c("Manual selection", "Coverage optimized", "Avoidance optimized", "Track optimized")
-
 
 cat(paste0("IDIOMS - Informing the Design and Implementation of Offshore Motus Systems.", "\n", 
           "Version: ", params$IDIOMS_version, "\n",
