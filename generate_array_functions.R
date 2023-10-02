@@ -116,6 +116,7 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
 
     ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
     grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+
     #get reference grid for optimization routine
     grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
 
@@ -298,7 +299,6 @@ optimize_study_area_covg_fixed_angles <- function(study_area_sf, min_ht, max_ht,
     colnames(all_proposed_stns_grid_detect_WebMerc@data) <- c("ID", "x", "y")  #set to lat long, needs x, y
     
     selected_stns_sp <- all_proposed_stns_grid_detect_WebMerc
-    
     #build antenna stations based on angle set 
     #step through each station to generate different pattern and combine
     # angle_set = c(0, 90, 180, 270)

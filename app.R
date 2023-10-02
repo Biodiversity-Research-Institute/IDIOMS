@@ -43,6 +43,7 @@
 # 0.67.1 Crafty Orca - 16 Feb 23 - fixed some markdown bugs and problems with creating Motus antenna layer for display
 # 0.68 Elegant Porpoise - 16 Feb 23 - Added the ability to max. coverage with known fixed antenna angles. 
 # 0.68.1 - 06 Mar 23 - change to carry flight heights data through to outputs. 
+# 0.68.2 - 02 Oct 23 - error when loading shapefiles for turbines with m and z attributes - remove those on load
 
 currentdir <- normalizePath(getwd(), winslash = "/")
 source(file.path(currentdir, "helpers.R"))
@@ -60,7 +61,7 @@ library(reactlog)
 # tell shiny to log all reactivity
 reactlog_enable()
 
-IDIOMS_version = "0.68.1 Elegant Porpoise"
+IDIOMS_version = "0.68.2 Elegant Porpoise"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -1135,6 +1136,9 @@ server <- function(input, output, session) {
     stn_locs$ID <- 1:nrow(stn_locs)
     stn_locs <-
       st_as_sf(stn_locs[, c("ID")])  #remove any attribute data
+    
+    #error when you have z or m attributes - drop
+    stn_locs <- sf::st_zm(stn_locs)
     stn_locs
   })
 
@@ -1452,7 +1456,6 @@ server <- function(input, output, session) {
 
       study_area_sf <-
         st_as_sf(values$study_boundary) %>% st_transform(WebMerc)
-      
       #get reference grid for optimization routine
       ref_grid_WGS84 <- st_transform(values$ref_grid, WGS84)
       

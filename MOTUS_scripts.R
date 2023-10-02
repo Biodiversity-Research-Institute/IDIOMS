@@ -249,6 +249,7 @@ get_motus_receiver_antenna_data <- function(){
   require(sf)
 
   MOTUS_projects <- read.csv("https://motus.org/data/downloads/api-proxy/projects/descriptions?fmt=csv&showAll=true")
+
   #remove descriptions - too much data
   MOTUS_projects <- MOTUS_projects %>% select(-c(descriptionLong, descriptionShort))
   
