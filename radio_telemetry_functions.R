@@ -187,7 +187,8 @@ antenna_angle_optim_effecient <- function(proposed_stn_points, n_antennas, ant_a
     stn2_val <- point_pairs_optim[i, ]$stn2
     pt1 <- proposed_stn_points[stn1_val,]
     pt2 <- proposed_stn_points[stn2_val,]
-    close_stns <- maptools::spRbind(pt1, pt2)
+    # close_stns <- maptools::spRbind(pt1, pt2)
+    close_stns <- sp::rbind(pt1, pt2)
 
     for (k in 1:nrow(ant_perms)){ 
       angle_set <- ant_perms[k,]  

@@ -115,7 +115,8 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
     #expand ref buffer distance as needed to optimize
 
     ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-    grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+    # grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+    grid_sf <- create_grid(ref_area_sf, 1000)
 
     #get reference grid for optimization routine
     grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
@@ -185,7 +186,9 @@ optimize_study_area_covg <- function(study_area_sf, min_ht, max_ht, interval_m=5
       #expand ref buffer distance as needed to optimize
 
       ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-      grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+      # grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+      grid_sf <- create_grid(ref_area_sf, 1000)
+      
       #get reference grid for optimization routine
       grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
 
@@ -256,7 +259,9 @@ optimize_study_area_covg_fixed_angles <- function(study_area_sf, min_ht, max_ht,
     #expand ref buffer distance as needed to optimize
     
     ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-    grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+    # grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+    grid_sf <- create_grid(ref_area_sf, 1000)
+    
     #get reference grid for optimization routine
     grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
     
@@ -351,7 +356,9 @@ optimize_study_area_covg_fixed_angles <- function(study_area_sf, min_ht, max_ht,
       #expand ref buffer distance as needed to optimize
       
       ref_area_sf <- sf::st_buffer(ref_area_sf, dist=buff_dist)
-      grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+      # grid_sf <- create_grid(sf::as_Spatial(ref_area_sf), 1000)
+      grid_sf <- create_grid(ref_area_sf, 1000)
+      
       #get reference grid for optimization routine
       grid_sf_WGS84 <- st_transform(grid_sf, WGS84)
       

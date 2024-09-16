@@ -44,6 +44,8 @@
 # 0.68 Elegant Porpoise - 16 Feb 23 - Added the ability to max. coverage with known fixed antenna angles. 
 # 0.68.1 - 06 Mar 23 - change to carry flight heights data through to outputs. 
 # 0.68.2 - 02 Oct 23 - error when loading shapefiles for turbines with m and z attributes - remove those on load
+# 0.68.3 - 16 Sep 24 - Very small possible floating point issues - round lat/longs; also some further changes from sp to sf
+#  also remove maptools calls as its been discontinued
 
 currentdir <- normalizePath(getwd(), winslash = "/")
 source(file.path(currentdir, "helpers.R"))
@@ -61,7 +63,7 @@ library(reactlog)
 # tell shiny to log all reactivity
 reactlog_enable()
 
-IDIOMS_version = "0.68.2 Elegant Porpoise"
+IDIOMS_version = "0.68.3 Fastidious Porpoise"
 # options(shiny.trace = TRUE)
 
 ui <- dashboardPage(
@@ -1051,7 +1053,7 @@ server <- function(input, output, session) {
     pts <-
       st_sf(geometry = st_sfc(st_multipoint(rbind(ll, ul, ur, lr)), crs = 3857))
     poly <-
-      st_as_sf(st_cast(pts, "POLYGON")) %>% st_transform(WGS84) %>% as_Spatial()
+      st_as_sf(st_cast(pts, "POLYGON")) %>% st_transform(WGS84) #%>% as_Spatial()
     return(poly)
   })
   
@@ -1129,7 +1131,7 @@ server <- function(input, output, session) {
       file.rename(shpdf$datapath[i],
                   paste0(tempdirname, "/", shpdf$name[i]))
     }
-    
+
     stn_locs <- spTransform(readOGR(paste(tempdirname,
                                           shpdf$name[grep(pattern = "*.shp$", shpdf$name)],
                                           sep = "/")), WGS84)
@@ -1171,35 +1173,48 @@ server <- function(input, output, session) {
   # If the study area changes set the boundary and reference grid for processing
   observeEvent(study_area(), {
     values$study_boundary <- study_area()
+    study_boundary_webmerc <- st_transform(study_area(), 3857)
     #create grid to optimize against - try 500 m grid for
     #28 Jun 22 - grid size may be cause of exceeding memory (8gb), increase to 750 to see if this helps. 
     values$ref_grid <- create_grid(study = study_area(), resolution_m = 750)
     #Create the buffer around the study area boundary for avoidance optim
-    study_buff_webmerc <- spTransform(study_area(), WebMerc)
-    values$avoid_buffer <- gDifference(gBuffer(study_buff_webmerc, width=isolate(input$numInput_avoidance_dist)*1000, quadsegs=30), 
-                                       study_buff_webmerc)
+    # study_buff_webmerc <- spTransform(study_area(), WebMerc)
+
+    # values$avoid_buffer <- gDifference(gBuffer(study_buff_webmerc, width=isolate(input$numInput_avoidance_dist)*1000, quadsegs=30), 
+    #                                    study_buff_webmerc)
+    values$avoid_buffer <- st_buffer(study_boundary_webmerc, dist=isolate(input$numInput_avoidance_dist)*1000) %>% 
+      st_difference(study_boundary_webmerc)
+
     #create avoidance grid to optimize against - try 500 m grid for
     values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
     #get data.frame of cardinal points around study area to be able to simulate start from
-    study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
+    # study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
+    # study_boundary <- st_transform(values$study_boundary, 3857)
+    
     #when study area or input boundary changes generate the simulation point coords 
-    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary), 20)
+    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary_webmerc), 20)
   })
   
   observeEvent(input_boundary(), {
     values$study_boundary <- isolate(input_boundary())
+    study_boundary_webmerc <- st_transform(values$study_boundary, 3857)
+    
     #create grid to optimize against - try  500 m grid for
     values$ref_grid <- create_grid(study = values$study_boundary, resolution_m = 750)
     #Create the buffer around the input_boundary for avoidance optim
-    input_bound_buff_webmerc <- spTransform(values$study_boundary, WebMerc)
+    # input_bound_buff_webmerc <- spTransform(values$study_boundary, WebMerc)
+    # 
+    # values$avoid_buffer <- gDifference(gBuffer(input_bound_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30),
+    #                                    input_bound_buff_webmerc)
+    values$avoid_buffer <- st_buffer(study_boundary_webmerc, dist=isolate(input$numInput_avoidance_dist)*1000) %>% 
+      st_difference(study_boundary_webmerc)
     
-    values$avoid_buffer <- gDifference(gBuffer(input_bound_buff_webmerc, width=input$numInput_avoidance_dist*1000, quadsegs=30),
-                                       input_bound_buff_webmerc)
     #create avoidance grid to optimize against - try 500 m grid for
     values$avoid_grid <- create_grid(study = values$avoid_buffer, resolution_m = 750)
-    study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
+    # study_boundary <- st_as_sf(values$study_boundary) %>% st_transform(3857)
     #when study area or input boundary changes generate the simulation point coords 
-    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary), 20)
+    values$sim_pt_coords <- cardinal_start_coords(st_sf(study_boundary_webmerc), 20)
+    
   })
 
   observeEvent(input$default_array, {
@@ -1891,7 +1906,8 @@ server <- function(input, output, session) {
         # add the study boundary and zoom to if available
     if (!is.null(values$study_boundary)) {
       # get bounds of study area to fit to map window
-      bounds <- bbox(values$study_boundary)
+      # bounds <- bbox(values$study_boundary)
+      bounds <- st_bbox(values$study_boundary)
       study_map_add <-
         addPolygons(
           map = study_map_add,
@@ -1902,10 +1918,14 @@ server <- function(input, output, session) {
           group = "Study boundary"
         ) %>%
         flyToBounds(
-          lng1 = bounds["x", "max"] + 0.05,
-          lat1 = bounds["y", "max"] + 0.05,
-          lng2 = bounds["x", "min"] - 0.05,
-          lat2 = bounds["y", "min"] - 0.05
+          # lng1 = bounds["x", "max"] + 0.05,
+          # lat1 = bounds["y", "max"] + 0.05,
+          # lng2 = bounds["x", "min"] - 0.05,
+          # lat2 = bounds["y", "min"] - 0.05
+          lng1 = bounds["xmax"] + 0.05,
+          lat1 = bounds["ymax"] + 0.05,
+          lng2 = bounds["xmin"] - 0.05,
+          lat2 = bounds["ymin"] - 0.05
         )
     } 
     
@@ -1934,15 +1954,20 @@ server <- function(input, output, session) {
     # This could be addressed by inserting a reactive of what tab you're currently viewing."
     req(input$tabsetpan == "coverage_panel") # Only display if tab is 'Map Tab'
     if (!is.null(values$study_boundary)){
-      bounds <- bbox(values$study_boundary)
+      # bounds <- bbox(values$study_boundary)
+      bounds <- st_bbox(values$study_boundary)
       detection_map_add <- leafletProxy("detectionmap") %>% 
         clearGroup(group = "Study boundary") %>%
         clearGroup(group = "Station locations") %>% 
         flyToBounds(
-          lng1 = bounds["x", "max"] + 0.05,
-          lat1 = bounds["y", "max"] + 0.05,
-          lng2 = bounds["x", "min"] - 0.05,
-          lat2 = bounds["y", "min"] - 0.05
+          # lng1 = bounds["x", "max"] + 0.05,
+          # lat1 = bounds["y", "max"] + 0.05,
+          # lng2 = bounds["x", "min"] - 0.05,
+          # lat2 = bounds["y", "min"] - 0.05
+          lng1 = bounds["xmax"] + 0.05,
+          lat1 = bounds["ymax"] + 0.05,
+          lng2 = bounds["xmin"] - 0.05,
+          lat2 = bounds["ymin"] - 0.05
         )
       
       detection_map_add <-

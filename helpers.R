@@ -25,7 +25,7 @@ library(devtools)
 library(rcmdcheck)
 library(sp)
 library(sf)
-library(rgdal)
+# library(rgdal)
 library(geosphere)
 library(maxcovr)
 library(rootSolve)
@@ -36,7 +36,7 @@ library(lpSolve)
 library(Rglpk)
 library(gtools)
 library(DescTools)
-library(rgeos)
+# library(rgeos)
 library(SpatialPosition)
 library(lutz)
 library(rhandsontable)
@@ -179,11 +179,14 @@ cardinal_start_coords <- function(boundary, buff_dist_km){
 
 create_grid <- function(study, resolution_m){
   #create a regularly spaced grid of stations in webMercator
-  require(rgeos)
+  # require(rgeos)
   require(sp)
   require(SpatialPosition)
+  require(sf)
+  
+  # study_area_WebMerc <- spTransform(study, CRSobj = WebMerc)
+  study_area_WebMerc <- st_transform(study, crs = WebMerc)
 
-  study_area_WebMerc <- spTransform(study, CRSobj = WebMerc)
   grid_array <- SpatialPosition::CreateGrid(w = study_area_WebMerc, resolution = resolution_m, returnclass = "sf")  #creates a regularly spaced grid
   grid_array <- st_sf(grid_array, crs=WebMerc)
   # with rows corresponds to argument 1 (points) and 
@@ -228,7 +231,9 @@ points_to_line_sp <- function(data, x, y, id_field = NULL, sort_field = NULL, pr
         # id <- paste0("line", as.character(p))
         id <- names(paths[p])
         l <- SpatialLines(list(Lines(list(Line(paths[[p]])), id)), proj4string = proj)
-        sp_lines <- spRbind(sp_lines, l)
+        # sp_lines <- spRbind(sp_lines, l)
+        sp_lines <- sp::rbind(sp_lines, l)
+        
       }}
     
     return(sp_lines)
