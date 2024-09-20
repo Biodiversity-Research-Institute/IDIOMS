@@ -44,8 +44,8 @@
 # 0.68 Elegant Porpoise - 16 Feb 23 - Added the ability to max. coverage with known fixed antenna angles. 
 # 0.68.1 - 06 Mar 23 - change to carry flight heights data through to outputs. 
 # 0.68.2 - 02 Oct 23 - error when loading shapefiles for turbines with m and z attributes - remove those on load
-# 0.68.3 - 16 Sep 24 - Very small possible floating point issues - round lat/longs; also some further changes from sp to sf
-#  also remove maptools calls as its been discontinued
+# 0.68.3 - 16 Sep 24 - Very small possible floating point issues - round lat/longs; also some further changes from sp to sf, 
+#  also removal of rgeos/rgdal/maptools calls as its been discontinued
 
 currentdir <- normalizePath(getwd(), winslash = "/")
 source(file.path(currentdir, "helpers.R"))
@@ -1095,9 +1095,15 @@ server <- function(input, output, session) {
       file.rename(shpdf$datapath[i],
                   paste0(tempdirname, "/", shpdf$name[i]))
     }
-    map <- spTransform(readOGR(paste(tempdirname,
-                                     shpdf$name[grep(pattern = "*.shp$", shpdf$name)],
-                                     sep = "/")), WGS84)
+    # rgeos/rgdal removed so need to change loading libraries 
+    # map <- spTransform(readOGR(paste(tempdirname,
+    #                                  shpdf$name[grep(pattern = "*.shp$", shpdf$name)],
+    #                                  sep = "/")), WGS84)
+    #Need to drop z if it comes to us 
+    map <- sf::read_sf(paste(tempdirname, shpdf$name[grep(pattern = "*.shp$", shpdf$name)], sep = "/")) %>% 
+      st_zm() %>% 
+      st_transform(WGS84)
+    
     map
   })
 
@@ -1131,16 +1137,17 @@ server <- function(input, output, session) {
       file.rename(shpdf$datapath[i],
                   paste0(tempdirname, "/", shpdf$name[i]))
     }
-
-    stn_locs <- spTransform(readOGR(paste(tempdirname,
-                                          shpdf$name[grep(pattern = "*.shp$", shpdf$name)],
-                                          sep = "/")), WGS84)
-    stn_locs$ID <- 1:nrow(stn_locs)
-    stn_locs <-
-      st_as_sf(stn_locs[, c("ID")])  #remove any attribute data
     
-    #error when you have z or m attributes - drop
-    stn_locs <- sf::st_zm(stn_locs)
+    # rgeos/rgdal removed so need to change loading libraries 
+    # stn_locs <- spTransform(readOGR(paste(tempdirname,
+    #                                       shpdf$name[grep(pattern = "*.shp$", shpdf$name)],
+    #                                       sep = "/")), WGS84)
+    stn_locs <- sf::read_sf(paste(tempdirname, shpdf$name[grep(pattern = "*.shp$", shpdf$name)],sep = "/")) %>% 
+      st_zm() %>% 
+      st_transform(WGS84)
+    
+    stn_locs$ID <- 1:nrow(stn_locs)
+    stn_locs <- stn_locs[, c("ID")]  #remove any attribute data
     stn_locs
   })
 
